@@ -44,7 +44,11 @@ known-first-party = ["core", "domain", "application", "infrastructure", "present
 extend-immutable-calls = ["fastapi.Depends", "fastapi.params.Depends"]
 
 # mypy: mais maduro que as alternativas para SQLAlchemy 2.0 (Mapped[]) e Pydantic v2.
+# plugin oficial do pydantic: sem ele, mypy trata BaseSettings como uma classe comum e
+# exige todos os campos sem default como argumento posicional de Settings() — mesmo
+# sabendo que em runtime eles vêm do .env/variáveis de ambiente, não do construtor.
 [tool.mypy]
+plugins = ["pydantic.mypy"]
 python_version = "3.13"
 mypy_path = "src"
 explicit_package_bases = true

@@ -14,3 +14,4 @@ class Settings(BaseSettings):
 
     environment: Literal["development", "staging", "production"] = "development"
     log_level: str = "INFO"
+    database_url: str
