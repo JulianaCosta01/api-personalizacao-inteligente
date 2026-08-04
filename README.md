@@ -21,10 +21,11 @@ Esses cinco documentos são a única fonte de verdade da nova arquitetura; qualq
 Gerenciado via [`uv`](https://docs.astral.sh/uv/):
 
 ```bash
-uv sync --all-groups         # instala dependências de runtime e desenvolvimento
-uv run pytest                # executa a suíte de testes
-uv run ruff check src tests  # lint
-uv run mypy src              # checagem de tipos
+uv sync --all-groups                    # instala dependências de runtime e desenvolvimento
+uv run pytest                           # executa a suíte de testes
+uv run ruff check src tests migrations  # lint
+uv run mypy src migrations              # checagem de tipos
+uv run alembic upgrade head             # aplica as migrations no banco (requer DATABASE_URL válido)
 ```
 
 ---
