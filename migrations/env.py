@@ -15,6 +15,12 @@ sys.path.insert(0, str(SRC_DIR))
 
 # imports do projeto precisam vir depois do sys.path.insert acima — padrão do
 # próprio template async do Alembic, não dá para reordenar para o topo do arquivo.
+# infrastructure.database.models não é usado diretamente, mas precisa ser
+# importado: é o que registra as sete entidades em Base.metadata antes do
+# autogenerate rodar — sem isso, target_metadata abaixo ficaria vazio e o
+# Alembic geraria uma migration tentando dropar tudo (ou nada criar), mesmo com
+# os modelos existindo no pacote.
+import infrastructure.database.models  # noqa: E402,F401
 from core.config import get_settings  # noqa: E402
 from infrastructure.database.base import Base  # noqa: E402
 
