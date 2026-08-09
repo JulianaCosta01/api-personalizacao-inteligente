@@ -1,3 +1,4 @@
+from functools import lru_cache
 from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -14,3 +15,9 @@ class Settings(BaseSettings):
 
     environment: Literal["development", "staging", "production"] = "development"
     log_level: str = "INFO"
+    database_url: str
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()

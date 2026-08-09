@@ -25,13 +25,13 @@ jobs:
         run: uv sync --all-groups
 
       - name: Lint (ruff check)
-        run: uv run ruff check src tests
+        run: uv run ruff check src tests migrations
 
       - name: Formatação (ruff format --check)
-        run: uv run ruff format --check src tests
+        run: uv run ruff format --check src tests migrations
 
       - name: Checagem de tipos (mypy)
-        run: uv run mypy src
+        run: uv run mypy src migrations
 
       - name: Testes (pytest)
         run: uv run pytest -v
