@@ -69,6 +69,12 @@ disallow_untyped_defs = false
 pythonpath = ["src"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+# get_engine() é @lru_cache (Fase 2) e mantém um pool de conexões vivo entre
+# testes; com loop por função (padrão do pytest-asyncio), o segundo teste que
+# reusa o engine recebe conexões presas ao event loop já fechado do teste
+# anterior. Loop único por sessão mantém o pool consistente com o engine cacheado.
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
 
 # aplicação, não biblioteca — uv só gerencia dependências, sem etapa de build/publish
 [tool.uv]
