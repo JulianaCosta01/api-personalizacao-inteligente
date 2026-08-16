@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     storage_url: str
     storage_service_key: str
     storage_bucket_materiais: str = "materiais-didaticos"
+    material_tamanho_maximo_bytes: int = 10 * 1024 * 1024
 
 
 @lru_cache

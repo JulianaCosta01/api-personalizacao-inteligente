@@ -16,6 +16,8 @@ dependencies = [
     "email-validator>=2.2",
     # cliente HTTP usado pelo adaptador de Object Storage (Supabase Storage).
     "httpx>=0.27",
+    # exigido pelo FastAPI para interpretar multipart/form-data (upload de Material).
+    "python-multipart>=0.0.12",
 ]
 
 [dependency-groups]
@@ -41,10 +43,15 @@ ignore = []
 [tool.ruff.lint.isort]
 known-first-party = ["core", "domain", "application", "infrastructure", "presentation", "shared"]
 
-# Depends(...)/Query(...) como valor default são o padrão de DI do próprio FastAPI
-# (Documento 4, §7) — sem isso o B008 trata Depends como uma chamada mutável comum.
+# Depends(...)/Query(...)/File(...)/Form(...) como valor default são o padrão de DI
+# do próprio FastAPI — sem isso o B008 trata cada um como uma chamada mutável comum.
 [tool.ruff.lint.flake8-bugbear]
-extend-immutable-calls = ["fastapi.Depends", "fastapi.params.Depends"]
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.params.Depends",
+    "fastapi.File",
+    "fastapi.Form",
+]
 
 # mypy: mais maduro que as alternativas para SQLAlchemy 2.0 (Mapped[]) e Pydantic v2.
 # plugin oficial do pydantic: sem ele, mypy trata BaseSettings como uma classe comum e

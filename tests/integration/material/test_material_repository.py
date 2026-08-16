@@ -68,11 +68,15 @@ async def test_atualizar_material_inexistente_levanta_lookup_error(
 
 
 async def test_listar_retorna_total_e_itens_paginados(db_session: AsyncSession) -> None:
+    # Filtra pelo prefixo único do próprio teste: outros testes (inclusive de
+    # API, que commitam de verdade) também gravam na mesma tabela, então a
+    # contagem só é exata se restrita aos registros que este teste criou.
     repositorio = MaterialRepositorySQLAlchemy(db_session)
+    prefixo = str(uuid4())
     for i in range(3):
-        await repositorio.adicionar(_material(titulo=f"Material {i}"))
+        await repositorio.adicionar(_material(titulo=f"Material {prefixo} {i}"))
 
-    itens, total = await repositorio.listar(pagina=1, tamanho_pagina=2, titulo=None)
+    itens, total = await repositorio.listar(pagina=1, tamanho_pagina=2, titulo=prefixo)
 
     assert total == 3
     assert len(itens) == 2
@@ -80,10 +84,11 @@ async def test_listar_retorna_total_e_itens_paginados(db_session: AsyncSession) 
 
 async def test_listar_filtra_por_titulo_parcial(db_session: AsyncSession) -> None:
     repositorio = MaterialRepositorySQLAlchemy(db_session)
-    await repositorio.adicionar(_material(titulo="Introdução a Grafos"))
-    await repositorio.adicionar(_material(titulo="Árvores Binárias"))
+    prefixo = str(uuid4())
+    await repositorio.adicionar(_material(titulo=f"Introdução a Grafos {prefixo}"))
+    await repositorio.adicionar(_material(titulo=f"Árvores Binárias {prefixo}"))
 
-    itens, total = await repositorio.listar(pagina=1, tamanho_pagina=20, titulo="grafos")
+    itens, total = await repositorio.listar(pagina=1, tamanho_pagina=20, titulo=f"grafos {prefixo}")
 
     assert total == 1
-    assert itens[0].titulo == "Introdução a Grafos"
+    assert itens[0].titulo == f"Introdução a Grafos {prefixo}"

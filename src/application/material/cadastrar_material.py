@@ -7,7 +7,7 @@ from application.ports.material_repository import IMaterialRepository
 from application.ports.object_storage import IObjectStoragePort
 from domain.material.material_didatico import MaterialDidatico
 from domain.material.tipo_arquivo import TipoArquivo, eh_pdf_valido
-from domain.shared.exceptions import RecursoNaoEncontradoError, RegraDeNegocioVioladaError
+from domain.shared.exceptions import EntradaInvalidaError, RecursoNaoEncontradoError
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class CadastrarMaterialUseCase:
 
     async def executar(self, dados: CadastrarMaterialInput) -> MaterialDidatico:
         if not eh_pdf_valido(dados.conteudo):
-            raise RegraDeNegocioVioladaError(
+            raise EntradaInvalidaError(
                 code="ARQUIVO_INVALIDO", message="O arquivo enviado não é um PDF válido."
             )
 

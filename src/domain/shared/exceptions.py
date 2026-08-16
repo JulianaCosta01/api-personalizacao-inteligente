@@ -23,6 +23,12 @@ class RecursoNaoEncontradoError(DomainError):
     """Recurso referenciado por id não existe. Mapeada para 404 na API."""
 
 
+class EntradaInvalidaError(DomainError):
+    """Entrada fornecida pelo cliente não tem um formato aceitável (ex.: arquivo que não é
+    um PDF de verdade). Diferente de RegraDeNegocioVioladaError: aqui o problema é o dado em
+    si, não uma regra de negócio sobre um dado bem formado. Mapeada para 400."""
+
+
 class RegraDeNegocioVioladaError(DomainError):
     """Corpo da requisição válido, mas em desacordo com uma regra de negócio. Mapeada para 422."""
 

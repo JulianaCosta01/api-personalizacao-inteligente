@@ -7,7 +7,7 @@ from application.material.cadastrar_material import (
     CadastrarMaterialUseCase,
 )
 from domain.material.tipo_arquivo import TipoArquivo
-from domain.shared.exceptions import RecursoNaoEncontradoError, RegraDeNegocioVioladaError
+from domain.shared.exceptions import EntradaInvalidaError, RecursoNaoEncontradoError
 
 from .fakes import MaterialRepositorioFake, ObjectStorageFake
 
@@ -48,11 +48,11 @@ async def test_grava_no_storage_antes_de_persistir() -> None:
     assert storage.salvos[material.caminho_storage] == _PDF_VALIDO
 
 
-async def test_arquivo_sem_assinatura_pdf_levanta_regra_de_negocio_violada() -> None:
+async def test_arquivo_sem_assinatura_pdf_levanta_entrada_invalida() -> None:
     repositorio = MaterialRepositorioFake()
     storage = ObjectStorageFake()
 
-    with pytest.raises(RegraDeNegocioVioladaError):
+    with pytest.raises(EntradaInvalidaError):
         await CadastrarMaterialUseCase(repositorio, storage).executar(
             _input(conteudo=b"nao e um pdf")
         )

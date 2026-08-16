@@ -18,6 +18,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from domain.shared.exceptions import (
     ConflitoDeEstadoError,
     DomainError,
+    EntradaInvalidaError,
     RecursoNaoEncontradoError,
     RegraDeNegocioVioladaError,
 )
@@ -25,6 +26,7 @@ from domain.shared.exceptions import (
 logger = logging.getLogger(__name__)
 
 _STATUS_POR_EXCECAO: dict[type[DomainError], int] = {
+    EntradaInvalidaError: status.HTTP_400_BAD_REQUEST,
     RecursoNaoEncontradoError: status.HTTP_404_NOT_FOUND,
     # 422 fica como literal: o nome da constante mudou entre versões do
     # starlette (HTTP_422_UNPROCESSABLE_ENTITY -> _CONTENT) e o número é
