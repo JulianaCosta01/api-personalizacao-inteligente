@@ -9,3 +9,4 @@ os.environ.setdefault(
 os.environ.setdefault("SERVICE_TOKEN", "token-de-teste-nao-usar-em-producao")
 os.environ.setdefault("STORAGE_URL", "https://storage.teste.invalid")
 os.environ.setdefault("STORAGE_SERVICE_KEY", "chave-de-teste-nao-usar-em-producao")
+os.environ.setdefault("GEMINI_API_KEY", "chave-de-teste-nao-usar-em-producao")

@@ -18,6 +18,8 @@ dependencies = [
     "httpx>=0.27",
     # exigido pelo FastAPI para interpretar multipart/form-data (upload de Material).
     "python-multipart>=0.0.12",
+    # SDK oficial do Gemini; >=2.3.0 é o mínimo com suporte à Interactions API.
+    "google-genai>=2.3.0",
 ]
 
 [dependency-groups]

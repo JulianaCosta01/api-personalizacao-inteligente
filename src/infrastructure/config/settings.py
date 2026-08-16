@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     storage_service_key: str
     storage_bucket_materiais: str = "materiais-didaticos"
     material_tamanho_maximo_bytes: int = 10 * 1024 * 1024
+    gemini_api_key: str
+    gemini_model: str = "gemini-3.1-flash-lite"
+    gemini_timeout_segundos: float = 5.0
 
 
 @lru_cache
