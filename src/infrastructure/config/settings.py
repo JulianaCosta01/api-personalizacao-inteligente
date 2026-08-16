@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     environment: Literal["development", "staging", "production"] = "development"
     log_level: str = "INFO"
     database_url: str
+    # Token único de serviço (Documento 3, §2.2; Documento 4, §13.1) — sem
+    # default, mesma razão do database_url: subir sem ele é falha de config,
+    # não algo para mascarar com um valor de conveniência.
+    service_token: str
 
 
 @lru_cache

@@ -13,6 +13,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from domain.shared.exceptions import (
     ConflitoDeEstadoError,
@@ -58,6 +59,16 @@ async def _tratar_validacao(_request: Request, exc: RequestValidationError) -> J
     )
 
 
+async def _tratar_http_exception(_request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    # HTTPException é o único mecanismo usado pela Presentation para erros que
+    # não vêm do domínio (ex.: token de serviço ausente/inválido) — o detail
+    # já chega como {"code", "message"} nesses casos; string simples cobre o
+    # que o próprio Starlette levanta (ex.: rota inexistente).
+    if isinstance(exc.detail, dict) and "code" in exc.detail and "message" in exc.detail:
+        return _erro_json(exc.status_code, exc.detail["code"], exc.detail["message"])
+    return _erro_json(exc.status_code, "ERRO_HTTP", str(exc.detail))
+
+
 async def _tratar_erro_interno(request: Request, exc: Exception) -> JSONResponse:
     logger.exception("Erro não tratado em %s %s", request.method, request.url.path)
     return _erro_json(
@@ -72,4 +83,5 @@ def registrar_exception_handlers(app: FastAPI) -> None:
     # o Starlette despacha pelo tipo registrado na chave, então isso é seguro em runtime.
     app.add_exception_handler(DomainError, _tratar_domain_error)  # type: ignore[arg-type]
     app.add_exception_handler(RequestValidationError, _tratar_validacao)  # type: ignore[arg-type]
+    app.add_exception_handler(StarletteHTTPException, _tratar_http_exception)  # type: ignore[arg-type]
     app.add_exception_handler(Exception, _tratar_erro_interno)
