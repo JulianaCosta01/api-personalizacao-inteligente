@@ -12,16 +12,16 @@ dependencies = [
     "pydantic>=2.9",
     "pydantic-settings>=2.6",
     "asyncpg>=0.30",
-    # exigido pelo EmailStr do Pydantic para validar o e-mail recebido do Plugin
-    # no cadastro/atualização de Aluno (Documento 3, §4.1).
+    # exigido pelo EmailStr do Pydantic para validar e-mail nos schemas de entrada.
     "email-validator>=2.2",
+    # cliente HTTP usado pelo adaptador de Object Storage (Supabase Storage).
+    "httpx>=0.27",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
-    "httpx>=0.27",
     "ruff>=0.7",
     "mypy>=1.13",
 ]
