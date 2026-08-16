@@ -14,6 +14,16 @@ def _session_factory() -> async_sessionmaker[AsyncSession]:
 
 
 async def get_db_session() -> AsyncGenerator[AsyncSession]:
-    """Fornece uma AsyncSession por escopo de uso, no formato esperado pelo FastAPI Depends."""
+    """Fornece uma AsyncSession por escopo de uso, no formato esperado pelo FastAPI Depends.
+
+    Transação única por requisição (Documento 4, §8): commit se o caso de uso
+    concluir sem exceção, rollback caso contrário. Os repositórios nunca
+    commitam — essa é a única camada responsável pelo fechamento da transação.
+    """
     async with _session_factory()() as session:
-        yield session
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise

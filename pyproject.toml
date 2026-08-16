@@ -12,6 +12,9 @@ dependencies = [
     "pydantic>=2.9",
     "pydantic-settings>=2.6",
     "asyncpg>=0.30",
+    # exigido pelo EmailStr do Pydantic para validar o e-mail recebido do Plugin
+    # no cadastro/atualização de Aluno (Documento 3, §4.1).
+    "email-validator>=2.2",
 ]
 
 [dependency-groups]
