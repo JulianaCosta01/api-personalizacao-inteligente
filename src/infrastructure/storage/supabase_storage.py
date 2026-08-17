@@ -9,7 +9,13 @@ class ErroDeStorage(Exception):
 
 
 def _validar_chave(chave: str) -> None:
-    if ".." in chave or chave.startswith("/"):
+    # ".." e "/" absoluto cobrem traversal estilo Unix; "\\" cobre separador
+    # Windows (tanto "..\\" quanto caminhos absolutos como "C:\\..."); bytes
+    # nulos são rejeitados porque algumas APIs/filesystems truncam a string
+    # no primeiro \x00, permitindo contornar uma checagem de extensão feita
+    # antes deste ponto. Chaves geradas pelo próprio sistema (UUID) nunca
+    # contêm nenhum desses caracteres, então nada muda para o uso legítimo.
+    if ".." in chave or chave.startswith("/") or "\\" in chave or "\x00" in chave:
         raise ErroDeStorage("Chave de objeto inválida.")
 
 
@@ -37,3 +43,10 @@ class SupabaseStorageAdapter(IObjectStoragePort):
             raise ErroDeStorage(
                 f"Falha ao remover objeto do Storage (status {resposta.status_code})."
             )
+
+    async def obter(self, chave: str) -> bytes:
+        _validar_chave(chave)
+        resposta = await self._cliente.get(f"/object/{self._bucket}/{chave}")
+        if resposta.status_code >= 400:
+            raise ErroDeStorage(f"Falha ao ler objeto do Storage (status {resposta.status_code}).")
+        return resposta.content

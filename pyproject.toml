@@ -20,6 +20,15 @@ dependencies = [
     "python-multipart>=0.0.12",
     # SDK oficial do Gemini; >=2.3.0 é o mínimo com suporte à Interactions API.
     "google-genai>=2.3.0",
+    # Pipeline de personalização (Fase 7): extração do Material (PDF) para
+    # Markdown, sem depender do SDK legado do protótipo.
+    "pymupdf4llm>=0.0.17",
+    # Pipeline de personalização (Fase 7): conversão do conteúdo adaptado
+    # (Markdown) para HTML antes da geração do PDF final.
+    "markdown>=3.7",
+    # Pipeline de personalização (Fase 7): renderização do HTML em PDF. Exige
+    # bibliotecas nativas (Pango/Cairo) na imagem de execução (Fase 11/Docker).
+    "weasyprint>=62.0",
 ]
 
 [dependency-groups]
@@ -28,6 +37,8 @@ dev = [
     "pytest-asyncio>=0.24",
     "ruff>=0.7",
     "mypy>=1.13",
+    # stubs de tipo para markdown, usado pelo Pipeline de personalização (Fase 7).
+    "types-Markdown>=3.7",
 ]
 
 # Ruff cobre lint + format num único binário, evitando empilhar flake8/isort/black.
@@ -75,6 +86,11 @@ no_implicit_optional = true
 [[tool.mypy.overrides]]
 module = "tests.*"
 disallow_untyped_defs = false
+
+# pymupdf4llm e weasyprint não publicam stubs nem py.typed (Fase 7, Pipeline).
+[[tool.mypy.overrides]]
+module = ["pymupdf4llm", "weasyprint"]
+ignore_missing_imports = true
 
 # pythonpath em src/ permite `from core import ...` sem instalar o projeto como pacote.
 [tool.pytest.ini_options]

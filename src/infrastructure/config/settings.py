@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     gemini_api_key: str
     gemini_model: str = "gemini-3.1-flash-lite"
     gemini_timeout_segundos: float = 5.0
+    # Worker (Fase 7): intervalo entre tentativas de claim quando a fila está
+    # vazia, e idade máxima de um Processamento em_processamento antes de ser
+    # considerado preso e devolvido para pendente na recuperação de startup.
+    worker_intervalo_polling_segundos: float = 5.0
+    worker_idade_maxima_presos_segundos: float = 600.0
 
 
 @lru_cache

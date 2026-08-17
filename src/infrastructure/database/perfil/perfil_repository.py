@@ -24,6 +24,10 @@ class PerfilRepositorySQLAlchemy(IPerfilRepository):
         modelo.descricao_llm = perfil.descricao_llm
         await self._session.flush()
 
+    async def obter_por_id(self, id: UUID) -> Perfil | None:
+        modelo = await self._session.get(PerfilModel, id)
+        return _para_dominio(modelo) if modelo is not None else None
+
     async def obter_mais_recente_por_aluno_id(self, aluno_id: UUID) -> Perfil | None:
         consulta = (
             select(PerfilModel)

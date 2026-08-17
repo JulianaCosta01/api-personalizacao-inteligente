@@ -4,9 +4,14 @@ from typing import Any, cast
 
 import pytest
 from google import genai
+from tests.unit.infrastructure.pipeline.pdf_fixture import pdf_valido
 
 from domain.perfil.dimensoes import Compreensao, Entrada, EstiloProcessamento, Percepcao
-from infrastructure.llm.gemini_adapter import _SYSTEM_INSTRUCTION, GeminiAdapter
+from infrastructure.llm.gemini_adapter import (
+    _SYSTEM_INSTRUCTION,
+    _SYSTEM_INSTRUCTION_REESCRITA,
+    GeminiAdapter,
+)
 
 
 class _InteractionsFake:
@@ -135,3 +140,109 @@ async def test_erro_do_sdk_nao_expoe_api_key_no_log(caplog: pytest.LogCaptureFix
         await adaptador.gerar_descricao_perfil(*_dimensoes())
 
     assert chave_secreta not in caplog.text
+
+
+async def test_reescrita_chamada_correta_do_modelo() -> None:
+    interactions = _InteractionsFake(
+        resposta=SimpleNamespace(output_text="# Título adaptado\n\nConteúdo reescrito.")
+    )
+    adaptador = GeminiAdapter(_cliente_fake(interactions), "gemini-3.1-flash-lite", 5.0)
+
+    await adaptador.reescrever_conteudo(pdf_valido("Conteúdo original."), *_dimensoes())
+
+    assert interactions.chamadas[0]["model"] == "gemini-3.1-flash-lite"
+
+
+async def test_reescrita_system_instruction_separada_do_conteudo_do_usuario() -> None:
+    interactions = _InteractionsFake(
+        resposta=SimpleNamespace(output_text="# Título adaptado\n\nConteúdo reescrito.")
+    )
+    adaptador = GeminiAdapter(_cliente_fake(interactions), "gemini-3.1-flash-lite", 5.0)
+
+    await adaptador.reescrever_conteudo(pdf_valido("Conteúdo original."), *_dimensoes())
+
+    chamada = interactions.chamadas[0]
+    assert chamada["system_instruction"] == _SYSTEM_INSTRUCTION_REESCRITA
+    assert _SYSTEM_INSTRUCTION_REESCRITA not in chamada["input"]
+
+
+async def test_reescrita_fluxo_completo_retorna_pdf_e_resumo() -> None:
+    interactions = _InteractionsFake(
+        resposta=SimpleNamespace(
+            output_text="# Título adaptado\n\nConteúdo reescrito para o estilo do aluno."
+        )
+    )
+    adaptador = GeminiAdapter(_cliente_fake(interactions), "gemini-3.1-flash-lite", 5.0)
+
+    resultado = await adaptador.reescrever_conteudo(
+        pdf_valido("Conteúdo original de teste."), *_dimensoes()
+    )
+
+    assert resultado is not None
+    assert resultado.conteudo_pdf.startswith(b"%PDF-")
+    assert resultado.resumo == "Conteúdo reescrito para o estilo do aluno."
+
+
+async def test_reescrita_material_invalido_retorna_none() -> None:
+    interactions = _InteractionsFake(
+        resposta=SimpleNamespace(output_text="não deveria chegar aqui")
+    )
+    adaptador = GeminiAdapter(_cliente_fake(interactions), "gemini-3.1-flash-lite", 5.0)
+
+    resultado = await adaptador.reescrever_conteudo(b"nao e um pdf", *_dimensoes())
+
+    assert resultado is None
+    assert interactions.chamadas == []
+
+
+async def test_reescrita_resposta_vazia_retorna_none() -> None:
+    interactions = _InteractionsFake(resposta=SimpleNamespace(output_text=""))
+    adaptador = GeminiAdapter(_cliente_fake(interactions), "gemini-3.1-flash-lite", 5.0)
+
+    resultado = await adaptador.reescrever_conteudo(pdf_valido(), *_dimensoes())
+
+    assert resultado is None
+
+
+async def test_reescrita_excecao_do_sdk_retorna_none_sem_propagar() -> None:
+    interactions = _InteractionsFake(excecao=RuntimeError("falha simulada do SDK"))
+    adaptador = GeminiAdapter(_cliente_fake(interactions), "gemini-3.1-flash-lite", 5.0)
+
+    resultado = await adaptador.reescrever_conteudo(pdf_valido(), *_dimensoes())
+
+    assert resultado is None
+
+
+async def test_reescrita_timeout_retorna_none() -> None:
+    interactions = _InteractionsFake(
+        resposta=SimpleNamespace(output_text="tarde demais"), atraso=0.2
+    )
+    adaptador = GeminiAdapter(_cliente_fake(interactions), "gemini-3.1-flash-lite", 0.05)
+
+    resultado = await adaptador.reescrever_conteudo(pdf_valido(), *_dimensoes())
+
+    assert resultado is None
+
+
+async def test_reescrita_nao_expoe_api_key_no_log(caplog: pytest.LogCaptureFixture) -> None:
+    chave_secreta = "AIzaSy-chave-secreta-de-teste-nao-deve-vazar"
+    interactions = _InteractionsFake(excecao=RuntimeError(f"unauthorized: {chave_secreta}"))
+    adaptador = GeminiAdapter(_cliente_fake(interactions), "gemini-3.1-flash-lite", 5.0)
+
+    with caplog.at_level("WARNING"):
+        await adaptador.reescrever_conteudo(pdf_valido(), *_dimensoes())
+
+    assert chave_secreta not in caplog.text
+
+
+async def test_reescrita_nao_expoe_conteudo_do_material_no_log(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    conteudo_sensivel = "informação sigilosa do material didático"
+    interactions = _InteractionsFake(excecao=RuntimeError("falha simulada do SDK"))
+    adaptador = GeminiAdapter(_cliente_fake(interactions), "gemini-3.1-flash-lite", 5.0)
+
+    with caplog.at_level("WARNING"):
+        await adaptador.reescrever_conteudo(pdf_valido(conteudo_sensivel), *_dimensoes())
+
+    assert conteudo_sensivel not in caplog.text

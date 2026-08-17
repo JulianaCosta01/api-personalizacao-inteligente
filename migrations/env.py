@@ -21,6 +21,7 @@ sys.path.insert(0, str(SRC_DIR))
 # Alembic geraria uma migration tentando dropar tudo (ou nada criar), mesmo com
 # os modelos existindo no pacote.
 import infrastructure.database.models  # noqa: E402,F401
+import infrastructure.queue.models  # noqa: E402,F401
 from core.config import get_settings  # noqa: E402
 from infrastructure.database.base import Base  # noqa: E402
 

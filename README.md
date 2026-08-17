@@ -4,9 +4,11 @@ Sistema acadêmico desenvolvido no âmbito do **Mestrado em Ciência da Computa�
 
 ---
 
-## Status: migração em andamento para a arquitetura oficial (API + Worker)
+## Status: Fases 0–7 concluídas (API + Worker) — protótipo legado mantido intacto
 
-O protótipo descrito abaixo (`main.py` + `modulos/`) continua funcional e é mantido intacto durante a migração. A implementação da arquitetura definitiva (FastAPI + Worker + Pipeline, Clean Architecture) está em andamento em `src/`, seguindo rigorosamente:
+O protótipo descrito mais abaixo (`main.py` + `modulos/`) continua funcional e é mantido intacto. A arquitetura definitiva (FastAPI + Worker + Pipeline, Clean Architecture), implementada em `src/`, já cobre de ponta a ponta o cadastro de Aluno, Material Didático e Perfil de Aprendizagem, e o Processamento de Personalização (criação síncrona via API + execução assíncrona via Worker). Fases 8–12 do plano (exposição do Material Personalizado/Logs/Acesso, hardening de segurança, observabilidade, deploy, integração piloto com o plugin Moodle) ainda não foram iniciadas.
+
+A implementação segue rigorosamente:
 
 - [`documentacao/Documento_2_Modelagem_Sistema_v2.docx`](documentacao/Documento_2_Modelagem_Sistema_v2.docx) — modelagem do sistema (DER, casos de uso).
 - [`documentacao/Documento_3_Especificacao_API_v2.docx`](documentacao/Documento_3_Especificacao_API_v2.docx) — contrato REST completo.
@@ -16,21 +18,110 @@ O protótipo descrito abaixo (`main.py` + `modulos/`) continua funcional e é ma
 
 Esses cinco documentos são a única fonte de verdade da nova arquitetura; qualquer código em `src/` deve estar em conformidade com eles.
 
-### Ambiente de desenvolvimento (`src/`)
+---
 
-Gerenciado via [`uv`](https://docs.astral.sh/uv/):
+## Arquitetura Atual (`src/`) — API + Worker
 
-```bash
-uv sync --all-groups                    # instala dependências de runtime e desenvolvimento
-uv run pytest                           # executa a suíte de testes
-uv run ruff check src tests migrations  # lint
-uv run mypy src migrations              # checagem de tipos
-uv run alembic upgrade head             # aplica as migrations no banco (requer DATABASE_URL válido)
+Clean Architecture em camadas, com regra de dependência de mão única (`presentation`/`worker` → `infrastructure` → `application` → `domain`; `application` nunca importa `infrastructure`, `presentation` ou SQLAlchemy):
+
+```text
+src/
+├── domain/            # Entidades e regras de negócio puras (sem I/O)
+│   ├── aluno/ material/ perfil/ processamento/ material_personalizado/
+│   └── shared/         # DomainError e exceções base
+├── application/        # Casos de uso + portas (interfaces) que a Infrastructure implementa
+│   ├── aluno/ material/ perfil/ processamento/
+│   └── ports/           # IAlunoRepository, IObjectStoragePort, ILLMPort, IQueuePort, ...
+├── infrastructure/      # Implementações concretas
+│   ├── database/         # Repositórios SQLAlchemy (um por agregado) + engine/sessão
+│   ├── storage/           # SupabaseStorageAdapter (Object Storage do Material Didático)
+│   ├── llm/                # GeminiAdapter (perfil + reescrita pedagógica)
+│   ├── pipeline/            # extrator, normalizador, resumo, gerador_pdf (Fase 7)
+│   ├── queue/                # FilaPostgres (fila_processamento, SKIP LOCKED)
+│   └── config/                # Settings (pydantic-settings)
+├── presentation/api/    # FastAPI: routers, schemas, autenticação, middleware
+├── worker/              # Processo assíncrono consumidor da fila (Fase 7)
+└── core/                # Composição (get_settings, logging, exception handlers)
 ```
+
+### Módulos implementados
+
+- **Aluno** — cadastro/consulta/atualização (`POST/GET/PUT /api/v1/alunos`).
+- **Material Didático** — upload de PDF para o Object Storage, versionamento, listagem (`POST/GET /api/v1/materiais`).
+- **Perfil de Aprendizagem** — cadastro do perfil Felder-Silverman (4 dimensões) com descrição gerada via Gemini (`POST /api/v1/alunos/{aluno_id}/perfil`, `GET .../perfil`, `GET .../perfis`).
+- **Processamento de Personalização** — orquestra a personalização de um Material para um Aluno:
+  1. `POST /api/v1/processamentos` cria o `Processamento` (status `pendente`) e publica uma mensagem na fila `fila_processamento`, na mesma transação.
+  2. O **Worker** (processo separado, `src/worker/`) reivindica a mensagem mais antiga com `SELECT ... FOR UPDATE SKIP LOCKED` (concorrência segura entre múltiplas instâncias), marca o `Processamento` como `em_processamento` e executa o **Pipeline de PDF**:
+     extração do PDF original em Markdown (`pymupdf4llm`) → reescrita pedagógica via Gemini, adaptada às 4 dimensões do Perfil → normalização de LaTeX/Markdown → geração do resumo → renderização do Markdown final em PDF (`WeasyPrint`, com carregamento de rede externo desabilitado por padrão — mitigação de SSRF) → upload do PDF ao Object Storage → persistência do `MaterialPersonalizado` e conclusão do `Processamento`, tudo na mesma transação da remoção da mensagem da fila.
+  3. Falhas em qualquer etapa marcam o `Processamento` como `erro` (mensagem genérica, sem detalhes internos) sem derrubar o Worker; um `Processamento` preso em `em_processamento` por tempo maior que `WORKER_IDADE_MAXIMA_PRESOS_SEGUNDOS` é devolvido para `pendente` automaticamente, tanto na inicialização quanto periodicamente durante o loop do Worker.
+  4. Consulta e listagem: `GET /api/v1/processamentos/{id}`, `GET /api/v1/alunos/{aluno_id}/processamentos`.
+  5. Reprocessamento manual de um `Processamento` em `erro` **não existe ainda** — mensagens de erro permanecem fora da fila; é um recurso planejado, não implementado nesta fase.
+
+Download do PDF personalizado gerado (`MaterialPersonalizado`) ainda não é exposto por um endpoint — está no escopo da Fase 8.
+
+### Autenticação
+
+Todas as rotas de negócio (exceto `GET /health`) exigem `Authorization: Bearer <SERVICE_TOKEN>` — um único token estático por instalação, comparado em tempo constante (`hmac.compare_digest`). Não há JWT, OAuth ou sessão por aluno nesta versão.
 
 ---
 
-## 📂 Arquitetura do Projeto
+## Executando a Arquitetura Atual (`src/`)
+
+### Pré-requisitos
+
+- Python 3.13+ (o projeto declara `requires-python = ">=3.13"` em `pyproject.toml`; usar uma versão menor causa erros de import como `datetime.UTC`/`enum.StrEnum`).
+- [`uv`](https://docs.astral.sh/uv/) para gerência de dependências.
+- Docker (para o Postgres via `docker-compose.yml`) — ou um Postgres 16 acessível por outro meio.
+- Bibliotecas nativas do WeasyPrint (Pango, Cairo) — necessárias para o Worker gerar PDF. No macOS: `brew install pango cairo libffi`. No Debian/Ubuntu: `apt-get install libpango-1.0-0 libpangocairo-1.0-0 libcairo2`.
+- Uma chave de API do Gemini e um projeto Supabase (Storage) — ver `.env.example`.
+
+### Instalação e configuração
+
+```bash
+uv sync --all-groups     # instala dependências de runtime e desenvolvimento
+
+cp .env.example .env     # preencha SERVICE_TOKEN, STORAGE_URL, STORAGE_SERVICE_KEY, GEMINI_API_KEY
+```
+
+### Banco de dados
+
+```bash
+docker compose up -d postgres         # sobe o Postgres 16 na porta 5433 (ver POSTGRES_PORT no .env)
+uv run alembic upgrade head           # aplica as migrations (requer DATABASE_URL válido no .env)
+```
+
+### Iniciar a API
+
+```bash
+uv run uvicorn presentation.api.main:app --app-dir src --reload
+```
+
+A API sobe em `http://localhost:8000`; `GET /health` não exige autenticação.
+
+### Iniciar o Worker
+
+Processo separado da API, sem servidor HTTP — consome `fila_processamento` em loop contínuo até ser interrompido:
+
+```bash
+PYTHONPATH=src uv run python -m worker.worker
+```
+
+### Executar os testes
+
+```bash
+uv run pytest                                  # suíte completa (unit + integration + api)
+uv run ruff check src tests migrations         # lint
+uv run ruff format --check src tests migrations # formatação
+uv run mypy src migrations                     # checagem de tipos
+```
+
+Os testes de integração e de API exigem um Postgres real acessível na `DATABASE_URL` configurada para testes (ver `tests/conftest.py`); os de unidade não dependem de banco.
+
+---
+
+## 📂 Protótipo Legado (`main.py` + `modulos/`) — Arquitetura
+
+> As seções abaixo descrevem o protótipo original (script único, sem API/Worker), mantido intacto e funcional em paralelo à arquitetura atual descrita acima.
 
 ```text
 projeto_bkb/
@@ -51,7 +142,7 @@ projeto_bkb/
 
 ---
 
-## Como Funciona
+## Como Funciona o Protótipo Legado
 
 Ao executar `python main.py`, o pipeline percorre 5 etapas em sequência:
 
@@ -109,7 +200,7 @@ graph TD
 
 ---
 
-##  Como Executar
+## Como Executar o Protótipo Legado
 
 ### Pré-requisitos
 
@@ -172,5 +263,4 @@ python main.py
 
 - O arquivo `.env` **não deve ser versionado**. Para evitar vazamento de chaves de API, certifique-se de ter um arquivo `.gitignore` no projeto. O projeto foi atualizado com um arquivo pronto.
 - Os arquivos `.pdf` de origem e os conteúdos em `materiais_gerados/` e os arquivos temporários `.md` também são bloqueados pelo `.gitignore` para não lotar seu repositório.
-- Apenas o código base (`main.py`, pasta `modulos/` e a documentação `README.md`/`EXPLICACAO.md`) deve subir no seu repositório do GitHub.
 - O modelo Gemini é selecionado dinamicamente com base nos modelos disponíveis para a API key informada.

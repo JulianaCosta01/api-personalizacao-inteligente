@@ -38,12 +38,21 @@ class MaterialRepositorioFake(IMaterialRepository):
 
 
 class ObjectStorageFake(IObjectStoragePort):
-    def __init__(self, falhar_remocao: bool = False) -> None:
+    def __init__(
+        self,
+        falhar_remocao: bool = False,
+        falhar_leitura: bool = False,
+        falhar_escrita: bool = False,
+    ) -> None:
         self.salvos: dict[str, bytes] = {}
         self.removidos: list[str] = []
         self.falhar_remocao = falhar_remocao
+        self.falhar_leitura = falhar_leitura
+        self.falhar_escrita = falhar_escrita
 
     async def salvar(self, chave: str, conteudo: bytes, tipo_arquivo: TipoArquivo) -> None:
+        if self.falhar_escrita:
+            raise RuntimeError("falha simulada ao salvar")
         self.salvos[chave] = conteudo
 
     async def remover(self, chave: str) -> None:
@@ -51,3 +60,11 @@ class ObjectStorageFake(IObjectStoragePort):
             raise RuntimeError("falha simulada ao remover")
         self.removidos.append(chave)
         self.salvos.pop(chave, None)
+
+    async def obter(self, chave: str) -> bytes:
+        if self.falhar_leitura:
+            raise RuntimeError("falha simulada ao ler")
+        conteudo = self.salvos.get(chave)
+        if conteudo is None:
+            raise RuntimeError(f"objeto inexistente no storage fake: {chave}")
+        return conteudo

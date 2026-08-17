@@ -95,3 +95,124 @@ async def test_remover_rejeita_chave_absoluta() -> None:
 
     with pytest.raises(ErroDeStorage):
         await adaptador.remover("/etc/passwd")
+
+
+async def test_obter_retorna_bytes_do_objeto() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/storage/v1/object/materiais/materiais/x.pdf"
+        return httpx.Response(200, content=b"%PDF-1.7 conteudo")
+
+    adaptador = SupabaseStorageAdapter(_cliente(handler), bucket="materiais")
+
+    conteudo = await adaptador.obter("materiais/x.pdf")
+
+    assert conteudo == b"%PDF-1.7 conteudo"
+
+
+async def test_obter_com_objeto_inexistente_levanta_erro_de_storage() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404, json={"message": "not found"})
+
+    adaptador = SupabaseStorageAdapter(_cliente(handler), bucket="materiais")
+
+    with pytest.raises(ErroDeStorage):
+        await adaptador.obter("materiais/inexistente.pdf")
+
+
+async def test_obter_com_falha_do_servidor_levanta_erro_de_storage() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(500, text="internal error")
+
+    adaptador = SupabaseStorageAdapter(_cliente(handler), bucket="materiais")
+
+    with pytest.raises(ErroDeStorage):
+        await adaptador.obter("materiais/x.pdf")
+
+
+async def test_obter_nao_expoe_corpo_da_resposta_de_erro() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(401, json={"message": "segredo-interno-do-supabase"})
+
+    adaptador = SupabaseStorageAdapter(_cliente(handler), bucket="materiais")
+
+    with pytest.raises(ErroDeStorage) as exc_info:
+        await adaptador.obter("materiais/x.pdf")
+
+    assert "segredo-interno-do-supabase" not in str(exc_info.value)
+
+
+async def test_obter_rejeita_chave_com_path_traversal() -> None:
+    adaptador = SupabaseStorageAdapter(_cliente(lambda r: httpx.Response(200)), bucket="materiais")
+
+    with pytest.raises(ErroDeStorage):
+        await adaptador.obter("../etc/passwd")
+
+
+async def test_salvar_rejeita_chave_com_barra_invertida() -> None:
+    # Fase 7, Etapa 6 — Item 5: separador estilo Windows, usado tanto para
+    # traversal ("..\\..\\etc\\passwd") quanto para caminhos absolutos
+    # ("C:\\Windows\\System32").
+    adaptador = SupabaseStorageAdapter(_cliente(lambda r: httpx.Response(200)), bucket="materiais")
+
+    with pytest.raises(ErroDeStorage):
+        await adaptador.salvar("..\\..\\etc\\passwd", b"%PDF-1.7", TipoArquivo.PDF)
+
+
+async def test_salvar_rejeita_chave_com_caminho_absoluto_windows() -> None:
+    adaptador = SupabaseStorageAdapter(_cliente(lambda r: httpx.Response(200)), bucket="materiais")
+
+    with pytest.raises(ErroDeStorage):
+        await adaptador.salvar("C:\\Windows\\System32\\config", b"%PDF-1.7", TipoArquivo.PDF)
+
+
+async def test_salvar_rejeita_chave_com_byte_nulo() -> None:
+    # Poison null byte: algumas APIs truncam a string no primeiro \x00,
+    # permitindo contornar uma checagem de extensão feita antes deste ponto.
+    adaptador = SupabaseStorageAdapter(_cliente(lambda r: httpx.Response(200)), bucket="materiais")
+
+    with pytest.raises(ErroDeStorage):
+        await adaptador.salvar("materiais/x.pdf\x00.exe", b"%PDF-1.7", TipoArquivo.PDF)
+
+
+async def test_remover_rejeita_chave_com_barra_invertida() -> None:
+    adaptador = SupabaseStorageAdapter(_cliente(lambda r: httpx.Response(200)), bucket="materiais")
+
+    with pytest.raises(ErroDeStorage):
+        await adaptador.remover("..\\..\\etc\\passwd")
+
+
+async def test_remover_rejeita_chave_com_byte_nulo() -> None:
+    adaptador = SupabaseStorageAdapter(_cliente(lambda r: httpx.Response(200)), bucket="materiais")
+
+    with pytest.raises(ErroDeStorage):
+        await adaptador.remover("materiais/x.pdf\x00.exe")
+
+
+async def test_obter_rejeita_chave_com_barra_invertida() -> None:
+    adaptador = SupabaseStorageAdapter(_cliente(lambda r: httpx.Response(200)), bucket="materiais")
+
+    with pytest.raises(ErroDeStorage):
+        await adaptador.obter("..\\..\\etc\\passwd")
+
+
+async def test_obter_rejeita_chave_com_byte_nulo() -> None:
+    adaptador = SupabaseStorageAdapter(_cliente(lambda r: httpx.Response(200)), bucket="materiais")
+
+    with pytest.raises(ErroDeStorage):
+        await adaptador.obter("materiais/x.pdf\x00.exe")
+
+
+async def test_salvar_aceita_chave_uuid_normal_apos_reforco_de_validacao() -> None:
+    # Regressão: o formato de chave gerado pelo próprio sistema continua
+    # aceito integralmente após o reforço da validação.
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"Key": "materiais-personalizados/x.pdf"})
+
+    adaptador = SupabaseStorageAdapter(_cliente(handler), bucket="materiais")
+
+    await adaptador.salvar(
+        "materiais-personalizados/3fa85f64-5717-4562-b3fc-2c963f66afa6.pdf",
+        b"%PDF-1.7",
+        TipoArquivo.PDF,
+    )
