@@ -4,9 +4,9 @@ Sistema acadêmico desenvolvido no âmbito do **Mestrado em Ciência da Computa�
 
 ---
 
-## Status: Fases 0–7 concluídas (API + Worker) — protótipo legado mantido intacto
+## Status: Fases 0–8 concluídas (API + Worker + exposição do resultado) — protótipo legado mantido intacto
 
-O protótipo descrito mais abaixo (`main.py` + `modulos/`) continua funcional e é mantido intacto. A arquitetura definitiva (FastAPI + Worker + Pipeline, Clean Architecture), implementada em `src/`, já cobre de ponta a ponta o cadastro de Aluno, Material Didático e Perfil de Aprendizagem, e o Processamento de Personalização (criação síncrona via API + execução assíncrona via Worker). Fases 8–12 do plano (exposição do Material Personalizado/Logs/Acesso, hardening de segurança, observabilidade, deploy, integração piloto com o plugin Moodle) ainda não foram iniciadas.
+O protótipo descrito mais abaixo (`main.py` + `modulos/`) continua funcional e é mantido intacto. A arquitetura definitiva (FastAPI + Worker + Pipeline, Clean Architecture), implementada em `src/`, já cobre de ponta a ponta o cadastro de Aluno, Material Didático e Perfil de Aprendizagem, o Processamento de Personalização (criação síncrona via API + execução assíncrona via Worker, com retry nativo do SDK Gemini) e a exposição do resultado — Material Personalizado (com URL assinada de leitura), Log de Interação e Acesso ao Material Personalizado. Fases 9–12 do plano (hardening de segurança adicional, observabilidade, deploy, integração piloto com o plugin Moodle) ainda não foram iniciadas.
 
 A implementação segue rigorosamente:
 
@@ -53,11 +53,14 @@ src/
   1. `POST /api/v1/processamentos` cria o `Processamento` (status `pendente`) e publica uma mensagem na fila `fila_processamento`, na mesma transação.
   2. O **Worker** (processo separado, `src/worker/`) reivindica a mensagem mais antiga com `SELECT ... FOR UPDATE SKIP LOCKED` (concorrência segura entre múltiplas instâncias), marca o `Processamento` como `em_processamento` e executa o **Pipeline de PDF**:
      extração do PDF original em Markdown (`pymupdf4llm`) → reescrita pedagógica via Gemini, adaptada às 4 dimensões do Perfil → normalização de LaTeX/Markdown → geração do resumo → renderização do Markdown final em PDF (`WeasyPrint`, com carregamento de rede externo desabilitado por padrão — mitigação de SSRF) → upload do PDF ao Object Storage → persistência do `MaterialPersonalizado` e conclusão do `Processamento`, tudo na mesma transação da remoção da mensagem da fila.
-  3. Falhas em qualquer etapa marcam o `Processamento` como `erro` (mensagem genérica, sem detalhes internos) sem derrubar o Worker; um `Processamento` preso em `em_processamento` por tempo maior que `WORKER_IDADE_MAXIMA_PRESOS_SEGUNDOS` é devolvido para `pendente` automaticamente, tanto na inicialização quanto periodicamente durante o loop do Worker.
-  4. Consulta e listagem: `GET /api/v1/processamentos/{id}`, `GET /api/v1/alunos/{aluno_id}/processamentos`.
-  5. Reprocessamento manual de um `Processamento` em `erro` **não existe ainda** — mensagens de erro permanecem fora da fila; é um recurso planejado, não implementado nesta fase.
-
-Download do PDF personalizado gerado (`MaterialPersonalizado`) ainda não é exposto por um endpoint — está no escopo da Fase 8.
+  3. Chamadas ao Gemini (tanto a reescrita pedagógica quanto a `descricao_llm` síncrona do Perfil) usam o retry nativo do SDK `google-genai` (`HttpRetryOptions`: tentativas, backoff exponencial e jitter configuráveis via `Settings`/`.env`) — não um loop manual. O orçamento total de uma chamada do Worker (que não bloqueia nenhuma requisição HTTP) é maior que o do caminho síncrono do Perfil, que mantém o tempo-limite curto exigido pelo Documento 3 §4.2.
+  4. Falhas em qualquer etapa (inclusive esgotar as tentativas de retry do Gemini) marcam o `Processamento` como `erro` (mensagem genérica, sem detalhes internos) sem derrubar o Worker; um `Processamento` preso em `em_processamento` por tempo maior que `WORKER_IDADE_MAXIMA_PRESOS_SEGUNDOS` é devolvido para `pendente` automaticamente, tanto na inicialização quanto periodicamente durante o loop do Worker.
+  5. Consulta e listagem: `GET /api/v1/processamentos/{id}`, `GET /api/v1/alunos/{aluno_id}/processamentos`.
+  6. `erro` e `concluido` são estados terminais do `Processamento` (Documento 3 §14) — não há reprocessamento do mesmo registro. Uma nova tentativa do aluno é sempre um novo `POST /api/v1/processamentos`, criando um novo `Processamento`.
+- **Material Personalizado, Log de Interação e Acesso** — expõem o resultado do Processamento e o histórico de uso:
+  - `GET /api/v1/processamentos/{id}/material` e `GET /api/v1/materiais-personalizados/{id}` devolvem o `MaterialPersonalizado`, com `caminho_pdf` sempre como uma URL assinada e temporária (nunca a chave bruta do Object Storage — Documento 3 §7).
+  - `POST /api/v1/logs` e `GET /api/v1/processamentos/{id}/logs` registram e consultam eventos de interação.
+  - `GET/PUT /api/v1/materiais-personalizados/{id}/acesso` registra e consulta o progresso de leitura de um Aluno sobre um Material Personalizado, com checagem de posse (o `aluno_id` do corpo precisa corresponder ao aluno do `Processamento` de origem — proteção contra IDOR/BOLA).
 
 ### Autenticação
 
@@ -72,7 +75,7 @@ Todas as rotas de negócio (exceto `GET /health`) exigem `Authorization: Bearer 
 - Python 3.13+ (o projeto declara `requires-python = ">=3.13"` em `pyproject.toml`; usar uma versão menor causa erros de import como `datetime.UTC`/`enum.StrEnum`).
 - [`uv`](https://docs.astral.sh/uv/) para gerência de dependências.
 - Docker (para o Postgres via `docker-compose.yml`) — ou um Postgres 16 acessível por outro meio.
-- Bibliotecas nativas do WeasyPrint (Pango, Cairo) — necessárias para o Worker gerar PDF. No macOS: `brew install pango cairo libffi`. No Debian/Ubuntu: `apt-get install libpango-1.0-0 libpangocairo-1.0-0 libcairo2`.
+- Bibliotecas nativas do WeasyPrint (Pango, Cairo, GObject) — necessárias para o Worker gerar PDF. No macOS: `brew install pango cairo libffi`. No Debian/Ubuntu: `apt-get install libpango-1.0-0 libpangocairo-1.0-0 libcairo2`. **No Windows**, o pacote Python não traz essas bibliotecas — sem elas, qualquer import de `weasyprint` falha com `OSError: cannot load library 'libgobject-2.0-0'`. Instale o runtime GTK3 para Windows (ex.: [instalador da GNOME/msys2 linkado na documentação oficial do WeasyPrint](https://doc.courtbouillon.org/weasyprint/stable/first_steps.html#windows)) e garanta que a pasta `bin` da instalação esteja no `PATH` do usuário antes de abrir um novo terminal — o WeasyPrint carrega essas DLLs em tempo de execução, não em tempo de instalação do pacote Python.
 - Uma chave de API do Gemini e um projeto Supabase (Storage) — ver `.env.example`.
 
 ### Instalação e configuração
@@ -89,6 +92,32 @@ cp .env.example .env     # preencha SERVICE_TOKEN, STORAGE_URL, STORAGE_SERVICE_
 docker compose up -d postgres         # sobe o Postgres 16 na porta 5433 (ver POSTGRES_PORT no .env)
 uv run alembic upgrade head           # aplica as migrations (requer DATABASE_URL válido no .env)
 ```
+
+### Backup e Restore do PostgreSQL
+
+Critério de conclusão da Fase 11 (Documento 5, §185). Procedimento manual e testado — não é um backup agendado automaticamente.
+
+```bash
+scripts/backup_postgres.sh                  # gera backups/<POSTGRES_DB>_<timestamp>.dump
+scripts/restore_postgres.sh backups/arquivo.dump   # restaura (pede confirmação: destrutivo)
+```
+
+`pg_dump`/`pg_restore` rodam dentro do container `postgres` via `docker compose exec` (não exigem cliente Postgres no host) e autenticam com `POSTGRES_USER`/`POSTGRES_PASSWORD` do `.env` — a senha nunca aparece em `ps aux`, em log ou em arquivo. `restore_postgres.sh` usa `--clean --if-exists`: derruba e recria os objetos existentes do banco alvo antes de restaurar, por isso pede para digitar o nome do banco como confirmação. Dumps ficam em `backups/`, ignorado pelo Git (contêm dados reais).
+
+### Roles do PostgreSQL
+
+Privilégio mínimo (Fase 11, Documento 4 §13.2): duas roles, responsabilidades separadas.
+
+- **`POSTGRES_USER`** (admin) — usuário administrativo do cluster. Usado por Alembic (migrations), pelos scripts de backup/restore, e para manutenção manual. Nunca usado pela API ou pelo Worker.
+- **`mpi_app`** (runtime) — sem `SUPERUSER`, `CREATEDB` ou `CREATEROLE`. Só `SELECT`/`INSERT`/`UPDATE`/`DELETE` nas tabelas da aplicação, sem privilégio de criar/apagar tabelas. É a única credencial que API e Worker usam dentro do Docker Compose.
+
+Em um ambiente novo (ou depois de definir `POSTGRES_APP_PASSWORD` no `.env` pela primeira vez), crie a role de runtime com:
+
+```bash
+python scripts/setup_postgres_app_role.py
+```
+
+Idempotente — seguro rodar de novo (ex.: rotação de senha). Não exige Bash/WSL: funciona igual em PowerShell, cmd ou shell Unix, contanto que o Postgres do `docker-compose.yml` já esteja em execução.
 
 ### Iniciar a API
 
@@ -116,6 +145,10 @@ uv run mypy src migrations                     # checagem de tipos
 ```
 
 Os testes de integração e de API exigem um Postgres real acessível na `DATABASE_URL` configurada para testes (ver `tests/conftest.py`); os de unidade não dependem de banco.
+
+### Teste de carga e concorrência
+
+Ferramental separado da suíte pytest, para o critério de conclusão da Fase 10 (Documento 5, §17) — ver [`loadtest/README.md`](loadtest/README.md).
 
 ---
 
