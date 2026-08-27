@@ -11,10 +11,34 @@ from infrastructure.database.base import Base
 from infrastructure.database.connection import get_engine
 from infrastructure.database.session import get_db_session
 from presentation.api.main import app
+from presentation.api.rate_limit import (
+    LimitadorDeTaxa,
+    _limitador_materiais,
+    _limitador_processamentos,
+)
 
 # Mesmo valor definido em tests/conftest.py — lido do ambiente em vez de
 # duplicado, para não haver dois "tokens de teste" divergentes no repositório.
 SERVICE_TOKEN = os.environ["SERVICE_TOKEN"]
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _sem_rate_limit_por_padrao() -> AsyncGenerator[None]:
+    # Os limitadores de POST /processamentos e POST /materiais são singletons
+    # de processo (lru_cache) — sem isto, os ~20 testes de cada endpoint que
+    # já existem (não relacionados a rate limit) acabariam disputando o mesmo
+    # contador de token e falhando de forma não determinística com 429 quando
+    # rodados juntos. Um limite alto neutraliza o rate limiting por padrão;
+    # tests/api/test_rate_limit.py sobrescreve com limites baixos de propósito.
+    app.dependency_overrides[_limitador_processamentos] = lambda: LimitadorDeTaxa(
+        limite=1_000_000, janela_segundos=60.0
+    )
+    app.dependency_overrides[_limitador_materiais] = lambda: LimitadorDeTaxa(
+        limite=1_000_000, janela_segundos=60.0
+    )
+    yield
+    app.dependency_overrides.pop(_limitador_processamentos, None)
+    app.dependency_overrides.pop(_limitador_materiais, None)
 
 
 @pytest_asyncio.fixture(autouse=True)

@@ -28,6 +28,7 @@ from infrastructure.database.session import get_db_session
 from infrastructure.storage.cliente import get_storage_client
 from infrastructure.storage.supabase_storage import SupabaseStorageAdapter
 from presentation.api.dependencies import validar_token_servico
+from presentation.api.rate_limit import limitar_materiais
 from presentation.api.schemas.material import (
     MaterialListagemResponse,
     MaterialResponse,
@@ -74,6 +75,7 @@ async def _ler_arquivo(arquivo: UploadFile, limite_bytes: int) -> bytes:
 @router.post("", response_model=MaterialResponse)
 async def cadastrar_material(
     response: Response,
+    _limite: None = Depends(limitar_materiais),
     titulo: str = Form(...),
     arquivo: UploadFile = File(...),
     material_original_id: UUID | None = Form(default=None),

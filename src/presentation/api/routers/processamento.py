@@ -28,6 +28,7 @@ from infrastructure.database.processamento.processamento_repository import (
 from infrastructure.database.session import get_db_session
 from infrastructure.queue.fila_postgres import FilaPostgres
 from presentation.api.dependencies import validar_token_servico
+from presentation.api.rate_limit import limitar_processamentos
 from presentation.api.schemas.processamento import (
     PaginacaoResponse,
     ProcessamentoCadastroRequest,
@@ -74,6 +75,7 @@ async def _fila(session: AsyncSession = Depends(get_db_session)) -> IQueuePort:
 async def cadastrar_processamento(
     dados: ProcessamentoCadastroRequest,
     response: Response,
+    _limite: None = Depends(limitar_processamentos),
     repositorio_aluno: IAlunoRepository = Depends(_repositorio_aluno),
     repositorio_perfil: IPerfilRepository = Depends(_repositorio_perfil),
     repositorio_material: IMaterialRepository = Depends(_repositorio_material),
