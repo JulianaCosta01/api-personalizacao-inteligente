@@ -1,10 +1,12 @@
 import asyncio
+from collections.abc import Callable, Coroutine
 from types import SimpleNamespace
 from typing import Any, cast
 
+import httpx
 import pytest
 from google import genai
-from tests.unit.infrastructure.pipeline.pdf_fixture import pdf_valido
+from google.genai import types
 
 from domain.perfil.dimensoes import Compreensao, Entrada, EstiloProcessamento, Percepcao
 from infrastructure.llm.gemini_adapter import (
@@ -12,6 +14,7 @@ from infrastructure.llm.gemini_adapter import (
     _SYSTEM_INSTRUCTION_REESCRITA,
     GeminiAdapter,
 )
+from tests.unit.infrastructure.pipeline.pdf_fixture import pdf_valido
 
 
 class _InteractionsFake:
@@ -246,3 +249,166 @@ async def test_reescrita_nao_expoe_conteudo_do_material_no_log(
         await adaptador.reescrever_conteudo(pdf_valido(conteudo_sensivel), *_dimensoes())
 
     assert conteudo_sensivel not in caplog.text
+
+
+# --- Fase 8 Task 6: resiliência (retry nativo do SDK) -----------------------
+#
+# Os testes acima cobrem o GeminiAdapter isoladamente, com um `_InteractionsFake`
+# que substitui `client.aio.interactions` por inteiro — apropriado para testar
+# a lógica do próprio adaptador (uma chamada por invocação), mas incapaz de
+# exercitar retry de verdade, porque o retry (Fase 8 Task 6) é executado PELO
+# SDK dentro de uma única chamada a `interactions.create`, não por um loop
+# escrito neste adaptador. Os testes abaixo usam um `genai.Client` real, com
+# `HttpRetryOptions` configurado exatamente como em
+# infrastructure/llm/cliente.py, e substituem apenas o transporte HTTP
+# (`httpx.MockTransport`) — validam o comportamento real do SDK com a
+# configuração que o projeto usa, sem depender de rede.
+
+
+def _cliente_com_retry(
+    handler: Callable[[httpx.Request], httpx.Response]
+    | Callable[[httpx.Request], Coroutine[None, None, httpx.Response]],
+    tentativas: int = 3,
+    atraso_inicial: float = 0.01,
+    atraso_maximo: float = 0.05,
+    jitter: float = 0.0,
+) -> genai.Client:
+    # genai.Client constrói o lado síncrono (httpx.Client) e o assíncrono
+    # (httpx.AsyncClient) na inicialização, mesmo quando só o assíncrono
+    # (client.aio.interactions, usado pelo GeminiAdapter) é de fato chamado —
+    # sem um transporte explícito para os dois, o lado síncrono tenta resolver
+    # o proxy real do ambiente e falha. Um handler síncrono simples (nunca
+    # chamado nestes testes) evita esse problema sem exercitar rede alguma.
+    def _handler_sincrono_nao_usado(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("O lado síncrono do cliente não deveria ser chamado.")
+
+    return genai.Client(
+        api_key="chave-de-teste",
+        http_options=types.HttpOptions(
+            retry_options=types.HttpRetryOptions(
+                attempts=tentativas,
+                initial_delay=atraso_inicial,
+                max_delay=atraso_maximo,
+                jitter=jitter,
+            ),
+            httpx_client=httpx.Client(transport=httpx.MockTransport(_handler_sincrono_nao_usado)),
+            httpx_async_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+        ),
+    )
+
+
+def test_timeout_total_padrao_e_igual_ao_timeout_por_tentativa() -> None:
+    # Sem timeout_total_segundos explícito (caso do Perfil, caminho síncrono —
+    # ver presentation/api/routers/perfil.py), o orçamento total cai para uma
+    # tentativa única: nenhuma mudança de comportamento para quem não passar
+    # o novo parâmetro.
+    adaptador = GeminiAdapter(cast(genai.Client, SimpleNamespace()), "modelo", 5.0)
+
+    assert adaptador._timeout_total_segundos == 5.0
+
+
+def test_timeout_total_explicito_e_respeitado() -> None:
+    adaptador = GeminiAdapter(cast(genai.Client, SimpleNamespace()), "modelo", 5.0, 45.0)
+
+    assert adaptador._timeout_total_segundos == 45.0
+
+
+async def test_retry_recupera_apos_falha_transitoria_e_retorna_descricao() -> None:
+    chamadas = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        chamadas["n"] += 1
+        if chamadas["n"] < 3:
+            return httpx.Response(503, json={"error": {"message": "temporariamente indisponível"}})
+        return httpx.Response(200, json={"id": "abc", "output_text": "Perfil recuperado."})
+
+    adaptador = GeminiAdapter(_cliente_com_retry(handler), "gemini-3.1-flash-lite", 5.0, 10.0)
+
+    resultado = await adaptador.gerar_descricao_perfil(*_dimensoes())
+
+    assert resultado == "Perfil recuperado."
+    assert chamadas["n"] >= 3  # 2 falhas + a tentativa que teve sucesso
+
+
+async def test_retry_reescrita_recupera_apos_falha_transitoria() -> None:
+    chamadas = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        chamadas["n"] += 1
+        if chamadas["n"] < 2:
+            return httpx.Response(429, json={"error": {"message": "limite de taxa"}})
+        return httpx.Response(
+            200,
+            json={
+                "id": "abc",
+                "output_text": "# Título adaptado\n\nConteúdo reescrito após retry.",
+            },
+        )
+
+    adaptador = GeminiAdapter(_cliente_com_retry(handler), "gemini-3.1-flash-lite", 5.0, 10.0)
+
+    resultado = await adaptador.reescrever_conteudo(pdf_valido("Original."), *_dimensoes())
+
+    assert resultado is not None
+    assert resultado.resumo == "Conteúdo reescrito após retry."
+    assert chamadas["n"] >= 2
+
+
+async def test_retry_esgota_tentativas_e_retorna_none_sem_propagar() -> None:
+    chamadas = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        chamadas["n"] += 1
+        return httpx.Response(503, json={"error": {"message": "sempre indisponível"}})
+
+    adaptador = GeminiAdapter(
+        _cliente_com_retry(handler, tentativas=3), "gemini-3.1-flash-lite", 5.0, 10.0
+    )
+
+    resultado = await adaptador.gerar_descricao_perfil(*_dimensoes())
+
+    assert resultado is None
+    assert chamadas["n"] > 1  # de fato tentou mais de uma vez antes de desistir
+
+
+async def test_retry_esgotado_nao_expoe_detalhes_da_excecao_no_log(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        # Mensagem de erro simulando algo que a API poderia devolver e que
+        # nunca deveria aparecer, verbatim, no log de operação.
+        return httpx.Response(503, json={"error": {"message": "detalhe-interno-sensivel"}})
+
+    adaptador = GeminiAdapter(
+        _cliente_com_retry(handler, tentativas=2), "gemini-3.1-flash-lite", 5.0, 10.0
+    )
+
+    with caplog.at_level("WARNING"):
+        resultado = await adaptador.gerar_descricao_perfil(*_dimensoes())
+
+    assert resultado is None
+    assert "detalhe-interno-sensivel" not in caplog.text
+
+
+async def test_orcamento_total_pequeno_ainda_pode_interromper_o_retry() -> None:
+    # Interação central da Fase 8 Task 6: um orçamento total pequeno demais
+    # continua podendo cortar o retry pela metade via asyncio.wait_for — o
+    # que mudou não foi remover esse corte, e sim parar de usar o MESMO valor
+    # (pensado para uma tentativa única) como orçamento total por padrão. Aqui
+    # forçamos o cenário antigo de propósito (total == por tentativa) com um
+    # transporte lento, para provar que o corte ainda existe quando alguém
+    # configura um orçamento pequeno — o retry não "engana" o timeout externo.
+    async def handler(request: httpx.Request) -> httpx.Response:
+        await asyncio.sleep(0.1)
+        return httpx.Response(200, json={"id": "abc", "output_text": "tarde demais"})
+
+    adaptador = GeminiAdapter(
+        _cliente_com_retry(handler, tentativas=3, atraso_inicial=0.01, atraso_maximo=0.02),
+        "gemini-3.1-flash-lite",
+        0.05,  # timeout por tentativa
+        0.05,  # orçamento total IGUAL ao de uma tentativa única, de propósito
+    )
+
+    resultado = await adaptador.gerar_descricao_perfil(*_dimensoes())
+
+    assert resultado is None

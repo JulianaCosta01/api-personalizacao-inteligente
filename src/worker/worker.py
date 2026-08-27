@@ -38,7 +38,15 @@ def _construir_caso_de_uso(session: AsyncSession) -> ProcessarPersonalizacaoUseC
         PerfilRepositorySQLAlchemy(session),
         MaterialPersonalizadoRepositorySQLAlchemy(session),
         SupabaseStorageAdapter(get_storage_client(), settings.storage_bucket_materiais),
-        GeminiAdapter(get_gemini_client(), settings.gemini_model, settings.gemini_timeout_segundos),
+        GeminiAdapter(
+            get_gemini_client(),
+            settings.gemini_model,
+            settings.gemini_timeout_segundos,
+            # Orçamento maior que uma tentativa única: o Worker não bloqueia
+            # nenhuma requisição HTTP, então pode esperar as tentativas de
+            # retry do SDK (Fase 8 Task 6) até o limite configurado.
+            settings.gemini_timeout_total_segundos,
+        ),
     )
 
 

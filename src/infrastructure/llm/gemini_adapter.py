@@ -35,10 +35,29 @@ _TAMANHO_MAXIMO_RESPOSTA_REESCRITA = 200_000
 
 
 class GeminiAdapter(ILLMPort):
-    def __init__(self, cliente: genai.Client, modelo: str, timeout_segundos: float) -> None:
+    def __init__(
+        self,
+        cliente: genai.Client,
+        modelo: str,
+        timeout_segundos: float,
+        timeout_total_segundos: float | None = None,
+    ) -> None:
         self._cliente = cliente
         self._modelo = modelo
+        # Tempo-limite de CADA tentativa individual (kwarg `timeout=` de
+        # interactions.create, abaixo) — não do retry como um todo.
         self._timeout_segundos = timeout_segundos
+        # Orçamento da chamada inteira, incluindo as tentativas de retry que o
+        # SDK executa de forma transparente a este adaptador (configuradas em
+        # infrastructure/llm/cliente.py via HttpRetryOptions). Sem valor
+        # explícito, cai para timeout_segundos — equivalente a uma tentativa
+        # única, o que preserva o tempo-limite curto exigido pelo caminho
+        # síncrono do Perfil (Documento 3 §4.2; ver
+        # presentation/api/routers/perfil.py, que não passa este argumento de
+        # propósito). O Worker (Fase 7), que não bloqueia nenhuma requisição
+        # HTTP, passa um orçamento maior para dar espaço às tentativas extras
+        # — ver Settings.gemini_timeout_total_segundos.
+        self._timeout_total_segundos = timeout_total_segundos or timeout_segundos
 
     async def gerar_descricao_perfil(
         self,
@@ -61,7 +80,7 @@ class GeminiAdapter(ILLMPort):
                     input=entrada_usuario,
                     timeout=self._timeout_segundos,
                 ),
-                timeout=self._timeout_segundos,
+                timeout=self._timeout_total_segundos,
             )
         except TimeoutError:
             logger.warning("Timeout ao chamar o Gemini para gerar descricao_llm.")
@@ -104,7 +123,7 @@ class GeminiAdapter(ILLMPort):
                     input=entrada_usuario,
                     timeout=self._timeout_segundos,
                 ),
-                timeout=self._timeout_segundos,
+                timeout=self._timeout_total_segundos,
             )
             conteudo_adaptado = _validar_resposta_reescrita(getattr(interacao, "output_text", None))
             if conteudo_adaptado is None:
