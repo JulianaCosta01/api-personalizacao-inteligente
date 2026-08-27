@@ -36,6 +36,7 @@ services:
     build:
       context: .
       dockerfile: docker/api.Dockerfile
+    restart: unless-stopped
     env_file: .env
     environment:
       # Sobrescreve o valor do .env (voltado para o host, porta mapeada) pelo hostname
@@ -73,6 +74,7 @@ services:
     build:
       context: .
       dockerfile: docker/worker.Dockerfile
+    restart: unless-stopped
     env_file: .env
     environment:
       # Mesmo override de DATABASE_URL do serviço api, pelo mesmo motivo — inclusive a
