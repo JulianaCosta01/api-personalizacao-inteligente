@@ -1,6 +1,7 @@
 from uuid import uuid4
 
 from httpx import AsyncClient
+
 from tests.api.conftest import SERVICE_TOKEN
 
 _AUTH = {"Authorization": f"Bearer {SERVICE_TOKEN}"}
@@ -41,6 +42,16 @@ async def test_post_repetido_com_mesma_matricula_retorna_200_e_mesmo_id(
     assert primeiro.status_code == 201
     assert segundo.status_code == 200
     assert segundo.json()["id"] == primeiro.json()["id"]
+
+
+async def test_post_com_campo_desconhecido_retorna_400(client: AsyncClient) -> None:
+    payload = _payload_cadastro()
+    payload["campo_nao_permitido"] = "valor-qualquer"
+
+    response = await client.post("/api/v1/alunos", json=payload, headers=_AUTH)
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "REQUISICAO_INVALIDA"
 
 
 async def test_post_com_email_invalido_retorna_400(client: AsyncClient) -> None:

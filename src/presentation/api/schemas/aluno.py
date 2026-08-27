@@ -7,6 +7,8 @@ from domain.aluno.grupo_experimental import GrupoExperimental
 
 
 class AlunoCadastroRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     nome: str
     email: EmailStr
     matricula: str
