@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from application.processamento.processar_personalizacao import ProcessarPersonalizacaoUseCase
 from core.config import get_settings
+from core.logging import request_id_var
 from domain.processamento.status_processamento import StatusProcessamento
 from infrastructure.database.material.material_repository import MaterialRepositorySQLAlchemy
 from infrastructure.database.material_personalizado.material_personalizado_repository import (
@@ -116,11 +117,26 @@ async def recuperar_processamentos_presos() -> list[UUID]:
 async def executar_ciclo() -> None:
     """Uma iteração do loop: reivindica um Processamento pendente e, se
     conseguir, executa a personalização. Sem trabalho pendente, não faz nada —
-    a espera entre tentativas é responsabilidade exclusiva do loop."""
+    a espera entre tentativas é responsabilidade exclusiva do loop.
+
+    Fase 10 Task 1 — correlação de logs: processamento_id passa a ser o
+    identificador de correlação da jornada assíncrona inteira (Alternativa B,
+    sem tocar a fila nem IQueuePort — o id já existe e já é único por
+    execução). request_id_var é o mesmo ContextVar que RequestIDMiddleware usa
+    na API; JsonFormatter (core/logging.py) já sabe lê-lo automaticamente, sem
+    nenhuma mudança ali. O reset em finally é obrigatório: executar_loop
+    (worker/loop.py) roda ciclos sequenciais no mesmo processo, então sem isso
+    o id de um Processamento vazaria para os logs do próximo ciclo.
+    """
     processamento_id = await reivindicar_processamento()
     if processamento_id is None:
         return
-    await processar_reivindicado(processamento_id)
+
+    token = request_id_var.set(str(processamento_id))
+    try:
+        await processar_reivindicado(processamento_id)
+    finally:
+        request_id_var.reset(token)
 
 
 def _construir_ciclo_com_recuperacao_periodica(

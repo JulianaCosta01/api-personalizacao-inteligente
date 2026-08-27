@@ -6,8 +6,6 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from tests.unit.application.material.fakes import ObjectStorageFake
-from tests.unit.application.perfil.fakes import LLMFake
 
 from application.processamento.processar_personalizacao import ProcessarPersonalizacaoUseCase
 from domain.aluno.aluno import Aluno
@@ -33,6 +31,8 @@ from infrastructure.database.processamento.processamento_repository import (
 from infrastructure.database.session import sessao_transacional
 from infrastructure.queue.fila_postgres import FilaPostgres
 from infrastructure.queue.models import MensagemFila
+from tests.unit.application.material.fakes import ObjectStorageFake
+from tests.unit.application.perfil.fakes import LLMFake
 from worker.claim import reivindicar_processamento
 from worker.worker import processar_reivindicado, recuperar_processamentos_presos
 
