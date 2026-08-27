@@ -2,13 +2,13 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import pytest
-from tests.unit.application.aluno.fakes import AlunoRepositorioFake
 
 from application.perfil.criar_perfil import CriarPerfilInput, CriarPerfilUseCase
 from domain.aluno.aluno import Aluno
 from domain.aluno.grupo_experimental import GrupoExperimental
 from domain.perfil.dimensoes import Compreensao, Entrada, EstiloProcessamento, Percepcao
 from domain.shared.exceptions import RecursoNaoEncontradoError
+from tests.unit.application.aluno.fakes import AlunoRepositorioFake
 
 from .fakes import LLMFake, PerfilRepositorioFake
 

@@ -4,12 +4,12 @@ from uuid import uuid4
 
 import pytest_asyncio
 from httpx import AsyncClient, Response
-from tests.api.conftest import SERVICE_TOKEN
-from tests.unit.application.perfil.fakes import LLMFake
 
 from core.config import get_settings
 from presentation.api.main import app
 from presentation.api.routers.perfil import _llm
+from tests.api.conftest import SERVICE_TOKEN
+from tests.unit.application.perfil.fakes import LLMFake
 
 _AUTH = {"Authorization": f"Bearer {SERVICE_TOKEN}"}
 

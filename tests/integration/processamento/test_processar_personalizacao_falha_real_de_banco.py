@@ -2,8 +2,6 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from tests.unit.application.material.fakes import ObjectStorageFake
-from tests.unit.application.perfil.fakes import LLMFake
 
 from application.processamento.processar_personalizacao import ProcessarPersonalizacaoUseCase
 from domain.aluno.aluno import Aluno
@@ -24,6 +22,8 @@ from infrastructure.database.perfil.perfil_repository import PerfilRepositorySQL
 from infrastructure.database.processamento.processamento_repository import (
     ProcessamentoRepositorySQLAlchemy,
 )
+from tests.unit.application.material.fakes import ObjectStorageFake
+from tests.unit.application.perfil.fakes import LLMFake
 
 
 async def _cenario(session: AsyncSession) -> tuple[Processamento, MaterialDidatico]:

@@ -2,7 +2,6 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
-from tests.unit.application.aluno.fakes import AlunoRepositorioFake
 
 from application.perfil.consultar_perfil_mais_recente import ConsultarPerfilMaisRecenteUseCase
 from domain.aluno.aluno import Aluno
@@ -10,6 +9,7 @@ from domain.aluno.grupo_experimental import GrupoExperimental
 from domain.perfil.dimensoes import Compreensao, Entrada, EstiloProcessamento, Percepcao
 from domain.perfil.perfil import Perfil
 from domain.shared.exceptions import RecursoNaoEncontradoError
+from tests.unit.application.aluno.fakes import AlunoRepositorioFake
 
 from .fakes import PerfilRepositorioFake
 

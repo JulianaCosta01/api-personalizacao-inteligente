@@ -2,7 +2,6 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
-from tests.unit.application.aluno.fakes import AlunoRepositorioFake
 
 from application.processamento.listar_processamentos import (
     ListarProcessamentosDoAlunoUseCase,
@@ -13,6 +12,7 @@ from domain.aluno.grupo_experimental import GrupoExperimental
 from domain.processamento.processamento import Processamento
 from domain.processamento.status_processamento import StatusProcessamento
 from domain.shared.exceptions import RecursoNaoEncontradoError
+from tests.unit.application.aluno.fakes import AlunoRepositorioFake
 
 from .fakes import ProcessamentoRepositorioFake
 

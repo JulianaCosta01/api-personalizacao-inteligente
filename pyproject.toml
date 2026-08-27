@@ -39,13 +39,17 @@ dev = [
     "mypy>=1.13",
     # stubs de tipo para markdown, usado pelo Pipeline de personalização (Fase 7).
     "types-Markdown>=3.7",
+    # Teste de carga/concorrência da Fase 10 Task 2 (Documento 4 §18 cita Locust
+    # ou k6 como exemplo; Locust foi o formalmente aprovado). Usado somente por
+    # loadtest/ — nunca importado por src/ nem pela suíte pytest.
+    "locust>=2.31",
 ]
 
 # Ruff cobre lint + format num único binário, evitando empilhar flake8/isort/black.
 [tool.ruff]
 line-length = 100
 target-version = "py313"
-src = ["src", "tests", "migrations"]
+src = ["src", "tests", "migrations", "loadtest"]
 # legado fora do padrão de lint novo até ser substituído (Documento 5, Seção 15)
 extend-exclude = ["modulos", "main.py", "limpar_latex.py"]
 
@@ -54,7 +58,16 @@ select = ["E", "F", "W", "I", "UP", "B", "SIM"]
 ignore = []
 
 [tool.ruff.lint.isort]
-known-first-party = ["core", "domain", "application", "infrastructure", "presentation", "shared"]
+known-first-party = [
+    "core",
+    "domain",
+    "application",
+    "infrastructure",
+    "presentation",
+    "shared",
+    "loadtest",
+    "tests",
+]
 
 # Depends(...)/Query(...)/File(...)/Form(...) como valor default são o padrão de DI
 # do próprio FastAPI — sem isso o B008 trata cada um como uma chamada mutável comum.

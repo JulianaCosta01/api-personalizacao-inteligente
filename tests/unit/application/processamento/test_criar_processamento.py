@@ -2,9 +2,6 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import pytest
-from tests.unit.application.aluno.fakes import AlunoRepositorioFake
-from tests.unit.application.material.fakes import MaterialRepositorioFake
-from tests.unit.application.perfil.fakes import PerfilRepositorioFake
 
 from application.processamento.criar_processamento import (
     CriarProcessamentoInput,
@@ -18,6 +15,9 @@ from domain.perfil.dimensoes import Compreensao, Entrada, EstiloProcessamento, P
 from domain.perfil.perfil import Perfil
 from domain.processamento.status_processamento import StatusProcessamento
 from domain.shared.exceptions import RecursoNaoEncontradoError, RegraDeNegocioVioladaError
+from tests.unit.application.aluno.fakes import AlunoRepositorioFake
+from tests.unit.application.material.fakes import MaterialRepositorioFake
+from tests.unit.application.perfil.fakes import PerfilRepositorioFake
 
 from .fakes import ProcessamentoRepositorioFake, QueueFake
 

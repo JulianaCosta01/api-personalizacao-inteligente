@@ -3,12 +3,12 @@ from uuid import uuid4
 
 import pytest_asyncio
 from httpx import AsyncClient, Response
-from tests.api.conftest import SERVICE_TOKEN
-from tests.unit.application.material.fakes import ObjectStorageFake
 
 from core.config import get_settings
 from presentation.api.main import app
 from presentation.api.routers.material import _storage_material
+from tests.api.conftest import SERVICE_TOKEN
+from tests.unit.application.material.fakes import ObjectStorageFake
 
 _AUTH = {"Authorization": f"Bearer {SERVICE_TOKEN}"}
 _PDF_VALIDO = b"%PDF-1.7\nconteudo qualquer"

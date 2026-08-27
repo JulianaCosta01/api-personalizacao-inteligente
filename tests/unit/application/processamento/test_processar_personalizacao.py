@@ -3,8 +3,6 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import pytest
-from tests.unit.application.material.fakes import MaterialRepositorioFake, ObjectStorageFake
-from tests.unit.application.perfil.fakes import LLMFake, PerfilRepositorioFake
 
 from application.processamento.processar_personalizacao import ProcessarPersonalizacaoUseCase
 from domain.material.material_didatico import MaterialDidatico
@@ -14,6 +12,8 @@ from domain.perfil.perfil import Perfil
 from domain.processamento.processamento import Processamento
 from domain.processamento.status_processamento import StatusProcessamento
 from domain.shared.exceptions import RecursoNaoEncontradoError
+from tests.unit.application.material.fakes import MaterialRepositorioFake, ObjectStorageFake
+from tests.unit.application.perfil.fakes import LLMFake, PerfilRepositorioFake
 
 from .fakes import MaterialPersonalizadoRepositorioFake, ProcessamentoRepositorioFake
 
