@@ -1,5 +1,5 @@
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
@@ -36,6 +36,16 @@ def _app_de_teste() -> FastAPI:
     @app.get("/erro-interno")
     def _erro_interno() -> None:
         raise RuntimeError("falha inesperada")
+
+    @app.get("/nao-autorizado")
+    def _nao_autorizado() -> None:
+        raise HTTPException(
+            status_code=401, detail={"code": "TOKEN_INVALIDO", "message": "token inválido"}
+        )
+
+    @app.get("/http-exception-sem-envelope")
+    def _http_exception_sem_envelope() -> None:
+        raise HTTPException(status_code=403, detail="acesso negado")
 
     @app.post("/validado")
     def _validado(corpo: _Corpo) -> _Corpo:
@@ -85,3 +95,23 @@ def test_corpo_invalido_retorna_400_no_envelope_padrao(client: TestClient) -> No
 
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "REQUISICAO_INVALIDA"
+
+
+def test_http_exception_com_detail_estruturado_preserva_code_e_message(
+    client: TestClient,
+) -> None:
+    response = client.get("/nao-autorizado")
+
+    assert response.status_code == 401
+    assert response.json() == {
+        "error": {"code": "TOKEN_INVALIDO", "message": "token inválido", "details": {}}
+    }
+
+
+def test_http_exception_com_detail_string_cai_no_envelope_generico(client: TestClient) -> None:
+    response = client.get("/http-exception-sem-envelope")
+
+    assert response.status_code == 403
+    assert response.json() == {
+        "error": {"code": "ERRO_HTTP", "message": "acesso negado", "details": {}}
+    }

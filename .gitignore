@@ -29,3 +29,11 @@ Thumbs.db
 # artefatos gerados pelo protótipo legado (materiais podem conter dados de aluno)
 *.pdf
 !documentacao/**/*.pdf
+
+# artefatos do teste de carga (Fase 10 Task 2) — dados sintéticos e resultados locais,
+# nunca uma fonte de verdade a versionar
+loadtest/seed_data.json
+loadtest/resultados/
+
+# dumps de backup do PostgreSQL (Fase 11) — contêm dados reais, nunca versionar
+backups/

@@ -1,0 +1,2 @@
+class ErroDePipeline(Exception):
+    pass

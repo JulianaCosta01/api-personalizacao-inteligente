@@ -1,24 +1,104 @@
 services:
   postgres:
     image: postgres:16
-    container_name: mpi-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      # Sem fallback (Task 3 — hardening): subir sem essas variáveis definidas
+      # no .env deve falhar explicitamente na leitura do Compose, nunca cair
+      # em silêncio para a credencial previsível "postgres"/"postgres".
+      POSTGRES_USER: ${POSTGRES_USER:?defina POSTGRES_USER no .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+      # Não é credencial — nome de banco não concede acesso por si só; mantém
+      # o default de desenvolvimento já usado em todo o projeto ("mpi").
       POSTGRES_DB: ${POSTGRES_DB:-mpi}
+      # Explícito, não deixado para o default da imagem: o container "mpi-postgres"
+      # pré-existente (Task 2) grava os dados exatamente neste caminho — mantê-lo
+      # aqui garante que o container gerenciado pelo Compose aponte para o mesmo
+      # lugar, em vez de depender implicitamente do default da imagem coincidir.
+      PGDATA: /var/lib/postgresql/data
     # porta do host configurável — o padrão foge de 5432 porque uma instalação
     # nativa do Postgres no Windows já costuma ocupá-la (foi o conflito real
-    # encontrado ao integrar o banco nesta fase).
+    # encontrado ao integrar o banco nesta fase). Bind restrito a 127.0.0.1
+    # (Task 3 — hardening): acesso do host (dev/migration manual) continua
+    # funcionando via localhost, mas a porta para de responder em qualquer
+    # outra interface de rede (LAN, IP público do host).
     ports:
-      - "${POSTGRES_PORT:-5433}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:?defina POSTGRES_USER no .env}"]
       interval: 5s
       timeout: 5s
       retries: 5
 
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Sobrescreve o valor do .env (voltado para o host, porta mapeada) pelo hostname
+      # interno do Compose: dentro da rede dos containers, "postgres" resolve para o
+      # serviço acima e a porta é sempre a interna (5432), nunca a mapeada no host.
+      #
+      # Fase 11 — privilégio mínimo: API roda com a role de runtime (mpi_app),
+      # nunca com POSTGRES_USER (admin). POSTGRES_APP_PASSWORD é obrigatório
+      # (":?", sem fallback) de propósito — um fallback aqui poderia mascarar
+      # a variável não definida caindo silenciosamente numa senha errada, em
+      # vez de falhar alto e cedo. mpi_app precisa existir previamente (ver
+      # scripts/setup_postgres_app_role.py).
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_APP_USER:-mpi_app}:${POSTGRES_APP_PASSWORD:?defina POSTGRES_APP_PASSWORD no .env}@postgres:5432/${POSTGRES_DB:-mpi}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Fase 11 — readiness real: chama /ready (não só /health) via Python, já
+    # presente na imagem — evita instalar curl/wget só para isto.
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/ready', timeout=3).status == 200 else 1)",
+        ]
+      interval: 15s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/worker.Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Mesmo override de DATABASE_URL do serviço api, pelo mesmo motivo — inclusive a
+      # role de runtime (mpi_app) em vez do admin (Fase 11, ver comentário no serviço api).
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_APP_USER:-mpi_app}:${POSTGRES_APP_PASSWORD:?defina POSTGRES_APP_PASSWORD no .env}@postgres:5432/${POSTGRES_DB:-mpi}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Fase 11 — heartbeat: sem porta nem HTTP, o Worker não é um servidor;
+    # a própria checagem já usada pelo módulo (worker/heartbeat.py) roda
+    # dentro do container e sai com 0/1.
+    healthcheck:
+      test: ["CMD", "python", "-m", "worker.heartbeat"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+
 volumes:
+  # Volume externo: o container "mpi-postgres" (Task 2) já continha, neste volume
+  # anônimo, o banco com as migrations 10e649ad8790 e 4d5b6ae168df aplicadas.
+  # "external: true" + "name" fixo impedem o Compose de criar um volume novo e
+  # vazio com o nome de projeto (api-personalizacao-inteligente_postgres_data) —
+  # ele deve usar exatamente este volume existente, nunca um substituto.
   postgres_data:
+    external: true
+    name: f73d5e9e1bb5780fd44bed006c9e8a3ccf9a756aa4d955cdccf3e729daacbf83

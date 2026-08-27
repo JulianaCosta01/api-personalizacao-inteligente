@@ -1,0 +1,53 @@
+# Fase 11, Task 1 — nada aqui deve entrar no contexto de build de nenhuma imagem
+# (API hoje; Worker quando existir). .gitignore não é lido pelo `docker build`, por isso
+# este arquivo precisa cobrir explicitamente o mesmo escopo, mais o que só faz sentido
+# excluir de uma imagem (tests/, loadtest/, documentação, protótipo legado).
+
+# nunca no build context: segredos reais
+.env
+.env.*
+!.env.example
+
+# controle de versão e CI
+.git/
+.github/
+
+# artefatos de build/execução Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+uv-cache/
+
+# caches de ferramentas de dev
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# editor/SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# não pertencem à imagem de execução: testes, teste de carga, documentação, protótipo legado
+tests/
+loadtest/
+documentacao/
+modulos/
+main.py
+limpar_latex.py
+requirements.txt
+EXPLICACAO.md
+DIRETRIZES_DESENVOLVIMENTO_SEGURANCA.md
+README.md
+
+# artefatos gerados pelo protótipo legado
+*.pdf

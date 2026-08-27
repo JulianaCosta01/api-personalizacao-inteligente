@@ -76,10 +76,10 @@ O resultado é um dicionário Python como:
 
 ```python
 {
-    "compreensao":   "Sequencial",
-    "percepcao":     "Sensorial",
-    "entrada":       "Visual",
-    "processamento": "Reflexivo"
+    "compreensao": "Sequencial",
+    "percepcao": "Sensorial",
+    "entrada": "Visual",
+    "processamento": "Reflexivo",
 }
 ```
 

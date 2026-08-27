@@ -1,0 +1,32 @@
+from dataclasses import dataclass
+from datetime import datetime
+from uuid import UUID
+
+from domain.material.tipo_arquivo import TipoArquivo
+
+
+@dataclass
+class MaterialDidatico:
+    id: UUID
+    titulo: str
+    nome_arquivo: str
+    tipo_arquivo: TipoArquivo
+    caminho_storage: str
+    versao: int
+    data_upload: datetime
+
+    def revisar(
+        self,
+        nome_arquivo: str,
+        tipo_arquivo: TipoArquivo,
+        caminho_storage: str,
+        data_upload: datetime,
+    ) -> None:
+        # id e titulo identificam o material entre revisões; só o arquivo e a
+        # versão mudam, para que os Processamentos já vinculados continuem
+        # apontando para o mesmo registro.
+        self.nome_arquivo = nome_arquivo
+        self.tipo_arquivo = tipo_arquivo
+        self.caminho_storage = caminho_storage
+        self.data_upload = data_upload
+        self.versao += 1
