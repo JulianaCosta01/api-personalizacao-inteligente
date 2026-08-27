@@ -104,6 +104,45 @@ async def test_adiciona_e_persiste_material_personalizado(db_session: AsyncSessi
     assert persistido.resumo == material_personalizado.resumo
 
 
+async def test_adiciona_e_obtem_por_id(db_session: AsyncSession) -> None:
+    processamento = await _criar_processamento(db_session)
+    repositorio = MaterialPersonalizadoRepositorySQLAlchemy(db_session)
+    material_personalizado = _material_personalizado(processamento.id)
+
+    await repositorio.adicionar(material_personalizado)
+    encontrado = await repositorio.obter_por_id(material_personalizado.id)
+
+    assert encontrado is not None
+    assert encontrado.processamento_id == processamento.id
+    assert encontrado.titulo == material_personalizado.titulo
+
+
+async def test_obter_por_id_inexistente_retorna_none(db_session: AsyncSession) -> None:
+    repositorio = MaterialPersonalizadoRepositorySQLAlchemy(db_session)
+
+    assert await repositorio.obter_por_id(uuid4()) is None
+
+
+async def test_obtem_por_processamento_id(db_session: AsyncSession) -> None:
+    processamento = await _criar_processamento(db_session)
+    repositorio = MaterialPersonalizadoRepositorySQLAlchemy(db_session)
+    material_personalizado = _material_personalizado(processamento.id)
+    await repositorio.adicionar(material_personalizado)
+
+    encontrado = await repositorio.obter_por_processamento_id(processamento.id)
+
+    assert encontrado is not None
+    assert encontrado.id == material_personalizado.id
+
+
+async def test_obter_por_processamento_id_inexistente_retorna_none(
+    db_session: AsyncSession,
+) -> None:
+    repositorio = MaterialPersonalizadoRepositorySQLAlchemy(db_session)
+
+    assert await repositorio.obter_por_processamento_id(uuid4()) is None
+
+
 async def test_adicionar_com_processamento_inexistente_levanta_erro_de_integridade(
     db_session: AsyncSession,
 ) -> None:

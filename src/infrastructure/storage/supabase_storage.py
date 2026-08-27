@@ -50,3 +50,21 @@ class SupabaseStorageAdapter(IObjectStoragePort):
         if resposta.status_code >= 400:
             raise ErroDeStorage(f"Falha ao ler objeto do Storage (status {resposta.status_code}).")
         return resposta.content
+
+    async def criar_url_leitura(self, chave: str, expiracao_segundos: int) -> str:
+        # API do Supabase Storage: POST /object/sign/{bucket}/{chave} devolve
+        # {"signedURL": "/object/sign/{bucket}/{chave}?token=..."} — um path
+        # relativo à raiz do Storage, não uma URL completa. O cliente HTTP usado
+        # aqui já tem essa raiz como base_url (ver infrastructure/storage/cliente.py),
+        # então a URL final é essa base + o path devolvido, sem barra duplicada.
+        _validar_chave(chave)
+        resposta = await self._cliente.post(
+            f"/object/sign/{self._bucket}/{chave}",
+            json={"expiresIn": expiracao_segundos},
+        )
+        if resposta.status_code >= 400:
+            raise ErroDeStorage(
+                f"Falha ao gerar URL assinada no Storage (status {resposta.status_code})."
+            )
+        caminho_assinado = resposta.json()["signedURL"]
+        return f"{str(self._cliente.base_url).rstrip('/')}{caminho_assinado}"

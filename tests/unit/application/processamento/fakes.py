@@ -84,3 +84,11 @@ class MaterialPersonalizadoRepositorioFake(IMaterialPersonalizadoRepository):
         if self.falhar_escrita:
             raise RuntimeError("falha simulada de banco")
         self.adicionados.append(material_personalizado)
+
+    async def obter_por_id(self, id: UUID) -> MaterialPersonalizado | None:
+        return next((m for m in self.adicionados if m.id == id), None)
+
+    async def obter_por_processamento_id(
+        self, processamento_id: UUID
+    ) -> MaterialPersonalizado | None:
+        return next((m for m in self.adicionados if m.processamento_id == processamento_id), None)

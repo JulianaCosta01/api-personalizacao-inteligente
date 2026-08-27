@@ -68,3 +68,10 @@ class ObjectStorageFake(IObjectStoragePort):
         if conteudo is None:
             raise RuntimeError(f"objeto inexistente no storage fake: {chave}")
         return conteudo
+
+    async def criar_url_leitura(self, chave: str, expiracao_segundos: int) -> str:
+        if self.falhar_leitura:
+            raise RuntimeError("falha simulada ao ler")
+        if chave not in self.salvos:
+            raise RuntimeError(f"objeto inexistente no storage fake: {chave}")
+        return f"https://storage.fake/{chave}?expira_em={expiracao_segundos}"
