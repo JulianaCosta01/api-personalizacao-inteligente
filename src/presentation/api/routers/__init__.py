@@ -1,8 +1,13 @@
 from fastapi import APIRouter
 
+from presentation.api.routers.acesso import router as acesso_router
 from presentation.api.routers.aluno import router as aluno_router
 from presentation.api.routers.health import router as health_router
+from presentation.api.routers.log import router as log_router
 from presentation.api.routers.material import router as material_router
+from presentation.api.routers.material_personalizado import (
+    router as material_personalizado_router,
+)
 from presentation.api.routers.perfil import router as perfil_router
 from presentation.api.routers.processamento import router as processamento_router
 
@@ -12,3 +17,6 @@ api_router.include_router(aluno_router)
 api_router.include_router(material_router)
 api_router.include_router(perfil_router)
 api_router.include_router(processamento_router)
+api_router.include_router(material_personalizado_router)
+api_router.include_router(log_router)
+api_router.include_router(acesso_router)

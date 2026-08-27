@@ -26,7 +26,7 @@ async def _tabelas() -> AsyncGenerator[None]:
 
 
 @pytest_asyncio.fixture
-async def client() -> AsyncGenerator[AsyncClient]:
+async def _conexao_isolada() -> AsyncGenerator[async_sessionmaker[AsyncSession]]:
     # TestClient síncrono roda a app num event loop próprio, incompatível com
     # a engine assíncrona cacheada (get_engine): dá "Future attached to a
     # different loop". AsyncClient sobre ASGITransport mantém tudo no mesmo
@@ -43,15 +43,28 @@ async def client() -> AsyncGenerator[AsyncClient]:
     # sempre revertida, então nada some persistido no Postgres efêmero para
     # contaminar as suítes de integração quando `pytest tests/` roda tudo
     # numa única sessão.
+    #
+    # Extraído do fixture `client` para poder ser compartilhado com `db_session`
+    # (mesma conexão/transação) — ver o fixture `db_session` abaixo.
     engine = get_engine()
     connection = await engine.connect()
     transacao_externa = await connection.begin()
     fabrica_de_sessao_do_teste = async_sessionmaker(
         bind=connection, expire_on_commit=False, join_transaction_mode="create_savepoint"
     )
+    try:
+        yield fabrica_de_sessao_do_teste
+    finally:
+        await transacao_externa.rollback()
+        await connection.close()
 
+
+@pytest_asyncio.fixture
+async def client(
+    _conexao_isolada: async_sessionmaker[AsyncSession],
+) -> AsyncGenerator[AsyncClient]:
     async def _get_db_session_isolada() -> AsyncGenerator[AsyncSession]:
-        async with fabrica_de_sessao_do_teste() as session:
+        async with _conexao_isolada() as session:
             try:
                 yield session
                 await session.commit()
@@ -67,5 +80,18 @@ async def client() -> AsyncGenerator[AsyncClient]:
             yield client
     finally:
         app.dependency_overrides.pop(get_db_session, None)
-        await transacao_externa.rollback()
-        await connection.close()
+
+
+@pytest_asyncio.fixture
+async def db_session(
+    _conexao_isolada: async_sessionmaker[AsyncSession],
+) -> AsyncGenerator[AsyncSession]:
+    """Sessão para semear, via repositório, estado que a API pública sozinha não
+    alcança (ex.: um Processamento concluído com Material Personalizado, que só
+    o pipeline real do Worker cria). Usa a MESMA conexão/transação externa do
+    fixture `client` — dados gravados aqui ficam visíveis às requisições HTTP
+    feitas com `client` no mesmo teste, e tudo é revertido junto no teardown.
+    """
+    async with _conexao_isolada() as session:
+        yield session
+        await session.commit()
