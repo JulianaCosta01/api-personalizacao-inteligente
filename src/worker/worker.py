@@ -43,9 +43,8 @@ def _construir_caso_de_uso(session: AsyncSession) -> ProcessarPersonalizacaoUseC
             get_gemini_client(),
             settings.gemini_model,
             settings.gemini_timeout_segundos,
-            # Orçamento maior que uma tentativa única: o Worker não bloqueia
-            # nenhuma requisição HTTP, então pode esperar as tentativas de
-            # retry do SDK (Fase 8 Task 6) até o limite configurado.
+            # Orçamento maior que uma tentativa única: o Worker não bloqueia requisição HTTP,
+            # então pode esperar as tentativas de retry do SDK até o limite configurado.
             settings.gemini_timeout_total_segundos,
         ),
     )
@@ -59,16 +58,12 @@ async def processar_reivindicado(
 ) -> StatusProcessamento:
     """Executa a personalização de um Processamento já reivindicado (claim.py).
 
-    Transação própria: o Use Case (via seus repositórios) e a remoção da
-    mensagem da fila em caso de sucesso commitam juntos, como uma unidade.
-    `fabrica_caso_de_uso` existe para permitir injetar Storage/LLM fakes nos
-    testes, sem tocar rede real — por padrão monta os adaptadores concretos.
+    Transação própria: Use Case e remoção da mensagem da fila commitam juntos.
+    `fabrica_caso_de_uso` permite injetar Storage/LLM fakes nos testes.
 
-    Se a remoção da mensagem da fila falhar DEPOIS do Use Case ter concluído
-    com sucesso, toda a transação é desfeita (MaterialPersonalizado e o status
-    concluído voltam atrás) — mas o PDF já enviado ao Storage não é desfeito
-    junto, por não ser transacional com o banco. Por isso o upload é revertido
-    explicitamente aqui antes de propagar o erro original.
+    Se a remoção da fila falhar após o Use Case ter concluído, a transação é desfeita, mas
+    o PDF já enviado ao Storage não é (não é transacional com o banco) — por isso o upload
+    é revertido explicitamente aqui antes de propagar o erro.
     """
     async with sessao_transacional() as session:
         caso_de_uso = fabrica_caso_de_uso(session)
@@ -91,13 +86,11 @@ async def processar_reivindicado(
 
 
 async def recuperar_processamentos_presos() -> list[UUID]:
-    """Devolve para pendente Processamentos presos em em_processamento havia
-    mais tempo que o configurado. Chamada tanto na inicialização do Worker
-    quanto periodicamente durante o loop contínuo (ver
-    _construir_ciclo_com_recuperacao_periodica). A mensagem na
-    fila_processamento permanece intacta durante todo o ciclo (só é removida
-    em caso de sucesso), então o Processamento liberado volta a ser um
-    candidato válido de claim sem republicação.
+    """Devolve para pendente Processamentos presos em em_processamento além do tempo
+    configurado. Chamada na inicialização e periodicamente durante o loop (ver
+    _construir_ciclo_com_recuperacao_periodica). A mensagem na fila permanece intacta
+    durante todo o ciclo, então o Processamento liberado vira candidato válido de claim
+    sem republicação.
     """
     settings = get_settings()
     idade_maxima = timedelta(seconds=settings.worker_idade_maxima_presos_segundos)
@@ -115,18 +108,13 @@ async def recuperar_processamentos_presos() -> list[UUID]:
 
 
 async def executar_ciclo() -> None:
-    """Uma iteração do loop: reivindica um Processamento pendente e, se
-    conseguir, executa a personalização. Sem trabalho pendente, não faz nada —
-    a espera entre tentativas é responsabilidade exclusiva do loop.
+    """Uma iteração do loop: reivindica um Processamento pendente e, se conseguir, executa
+    a personalização. Sem trabalho pendente, não faz nada.
 
-    Fase 10 Task 1 — correlação de logs: processamento_id passa a ser o
-    identificador de correlação da jornada assíncrona inteira (Alternativa B,
-    sem tocar a fila nem IQueuePort — o id já existe e já é único por
-    execução). request_id_var é o mesmo ContextVar que RequestIDMiddleware usa
-    na API; JsonFormatter (core/logging.py) já sabe lê-lo automaticamente, sem
-    nenhuma mudança ali. O reset em finally é obrigatório: executar_loop
-    (worker/loop.py) roda ciclos sequenciais no mesmo processo, então sem isso
-    o id de um Processamento vazaria para os logs do próximo ciclo.
+    Correlação de logs: processamento_id vira o id de correlação da jornada, no mesmo
+    ContextVar que RequestIDMiddleware usa na API (JsonFormatter já lê automaticamente). O
+    reset em finally é obrigatório: executar_loop roda ciclos sequenciais no mesmo
+    processo, sem isso o id vazaria para o próximo ciclo.
     """
     processamento_id = await reivindicar_processamento()
     if processamento_id is None:
@@ -143,14 +131,12 @@ def _construir_ciclo_com_recuperacao_periodica(
     intervalo_recuperacao_segundos: float,
 ) -> Callable[[], Awaitable[None]]:
     """Envolve executar_ciclo para também rodar recuperar_processamentos_presos
-    periodicamente, sem introduzir nenhum scheduler externo: o loop genérico
-    de polling (executar_loop) continua sendo o único responsável por disparar
-    as iterações, no intervalo normal (worker_intervalo_polling_segundos, não
-    afetado por esta função). A cada iteração, esta função apenas verifica se
-    já se passou intervalo_recuperacao_segundos desde a última recuperação; se
-    sim, roda a recuperação antes do ciclo normal de claim/processamento. Uma
-    recuperação atrasada nunca substitui uma iteração de claim — ela só
-    acontece a mais, quando devida.
+    periodicamente, sem scheduler externo: o polling genérico (executar_loop) continua
+    disparando as iterações no intervalo normal.
+
+    A cada iteração, verifica se já passou intervalo_recuperacao_segundos desde a última
+    recuperação; se sim, roda antes do ciclo normal — nunca substitui uma iteração de
+    claim, só acontece a mais.
     """
     ultima_execucao = time.monotonic()
 

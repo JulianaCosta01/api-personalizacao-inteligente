@@ -42,11 +42,8 @@ async def _repositorio_perfil(
 
 
 def _llm(settings: Settings = Depends(get_settings)) -> ILLMPort:
-    # timeout_total_segundos não é passado de propósito: este é o caminho
-    # síncrono (Documento 3 §4.2 exige tempo-limite curto aqui), então o
-    # GeminiAdapter usa o próprio timeout por tentativa como orçamento total
-    # — diferente do Worker, que tem espaço para o retry completo (Fase 8
-    # Task 6, ver worker/worker.py).
+    # timeout_total_segundos não é passado de propósito: este é o caminho síncrono (Documento 3
+    # §4.2 exige tempo-limite curto), diferente do Worker, que tem espaço para o retry completo.
     return GeminiAdapter(
         get_gemini_client(), settings.gemini_model, settings.gemini_timeout_segundos
     )

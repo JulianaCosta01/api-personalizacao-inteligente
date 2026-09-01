@@ -33,12 +33,8 @@ def test_health_reflete_settings_injetada_via_dependency_override() -> None:
     assert response.json()["environment"] == "production"
 
 
-# /ready usa get_engine() diretamente (Fase 11) — precisa do cliente
-# assíncrono sobre ASGITransport (fixture `client`, tests/api/conftest.py),
-# não do TestClient síncrono usado acima para /health: a engine assíncrona
-# cacheada por get_engine() já causa "Future attached to a different loop"
-# com TestClient síncrono, exatamente o problema que a fixture `client` existe
-# para evitar (ver comentário em tests/api/conftest.py).
+# /ready usa get_engine() diretamente, por isso precisa da fixture `client`
+# (AsyncClient/ASGITransport), não do TestClient síncrono usado acima para /health.
 
 
 async def test_ready_retorna_200_quando_banco_e_fila_estao_disponiveis(
@@ -52,8 +48,7 @@ async def test_ready_retorna_200_quando_banco_e_fila_estao_disponiveis(
 
 async def test_ready_retorna_503_quando_banco_indisponivel(client: AsyncClient) -> None:
     # Sem derrubar um Postgres real: override da dependency, mesmo padrão já
-    # usado neste projeto para simular estado sem depender de infraestrutura
-    # externa de verdade.
+    # usado no projeto para simular estado sem infraestrutura externa de verdade.
     app.dependency_overrides[verificar_prontidao] = lambda: ResultadoProntidao(
         banco_ok=False, fila_ok=False
     )

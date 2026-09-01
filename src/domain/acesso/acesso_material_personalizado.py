@@ -40,9 +40,8 @@ class AcessoMaterialPersonalizado:
         porcentagem_leitura: float,
         download_realizado: bool,
     ) -> None:
-        # Documento 3 §4.7 — em toda chamada: quantidade_acessos incrementa,
-        # tempo_total_leitura acumula, porcentagem_leitura e download_realizado
-        # são sobrescritos, e status_leitura é derivado da nova porcentagem.
+        # Documento 3 §4.7: quantidade_acessos incrementa, tempo_total_leitura
+        # acumula, e status_leitura é derivado da nova porcentagem_leitura.
         self.data_ultimo_acesso = datetime.now(UTC)
         self.quantidade_acessos += 1
         self.tempo_total_leitura += tempo_leitura_incremento_segundos

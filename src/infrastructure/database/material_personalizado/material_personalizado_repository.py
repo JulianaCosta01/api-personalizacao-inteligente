@@ -15,10 +15,8 @@ class MaterialPersonalizadoRepositorySQLAlchemy(IMaterialPersonalizadoRepository
         self._session = session
 
     async def adicionar(self, material_personalizado: MaterialPersonalizado) -> None:
-        # SAVEPOINT: uma falha real de banco aqui (ex.: violação da unicidade de
-        # processamento_id) não pode envenenar a transação externa — o chamador
-        # (ProcessarPersonalizacaoUseCase) precisa da sessão ainda utilizável
-        # para marcar o Processamento como erro logo em seguida.
+        # SAVEPOINT: uma falha de unicidade aqui não pode envenenar a transação externa,
+        # o chamador (ProcessarPersonalizacaoUseCase) precisa da sessão utilizável depois.
         async with self._session.begin_nested():
             self._session.add(_para_modelo(material_personalizado))
             await self._session.flush()

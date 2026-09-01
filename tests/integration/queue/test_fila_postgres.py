@@ -182,13 +182,8 @@ async def test_remover_apaga_a_mensagem_da_fila(db_session: AsyncSession) -> Non
 async def test_falha_de_integridade_ao_publicar_nao_impede_uso_posterior_da_sessao(
     db_session: AsyncSession,
 ) -> None:
-    # Prova empírica do SAVEPOINT (Fase 7, Etapa 5 — Problema 1): uma falha
-    # REAL de banco (violação de UniqueConstraint em processamento_id) durante
-    # publicar() não pode envenenar a transação — o chamador
-    # (CriarProcessamentoUseCase) precisa marcar o Processamento como erro na
-    # mesma sessão logo em seguida. Sem o `begin_nested()` em FilaPostgres
-    # .publicar(), a chamada a `atualizar()` abaixo levantaria
-    # PendingRollbackError em vez de persistir o erro.
+    # Prova o SAVEPOINT: uma falha real de banco em publicar() não pode envenenar a
+    # transação; sem begin_nested(), atualizar() abaixo levantaria PendingRollbackError.
     processamento = await _criar_processamento(db_session)
     fila = FilaPostgres(db_session)
     await fila.publicar(processamento.id)
@@ -207,9 +202,8 @@ async def test_falha_de_integridade_ao_publicar_nao_impede_uso_posterior_da_sess
 
 
 async def test_dois_workers_disputando_a_mesma_mensagem_apenas_um_reivindica() -> None:
-    # Concorrência real exige transações/conexões independentes e commitadas —
-    # o `db_session` de teste roda tudo numa única transação não commitada,
-    # o que não exercitaria o SKIP LOCKED entre sessões distintas.
+    # Concorrência real exige transações/conexões independentes e commitadas; o `db_session`
+    # de teste roda numa só transação não commitada, sem exercitar o SKIP LOCKED entre sessões.
     async with sessao_transacional() as session:
         processamento = await _criar_processamento(session)
         await FilaPostgres(session).publicar(processamento.id)

@@ -65,9 +65,8 @@ async def test_post_com_email_invalido_retorna_400(client: AsyncClient) -> None:
 
 
 async def test_persistencia_real_entre_requisicoes_http_separadas(client: AsyncClient) -> None:
-    # Regressão direta do bug de sessão sem commit: cada chamada abre e fecha
-    # sua própria requisição/sessão, então só passa se o GET enxergar o que o
-    # POST anterior realmente gravou no banco.
+    # Regressão do bug de sessão sem commit: só passa se o GET enxergar o que
+    # o POST anterior gravou de fato no banco, cada um em sua própria requisição.
     cadastro = await client.post("/api/v1/alunos", json=_payload_cadastro(), headers=_AUTH)
     aluno_id = cadastro.json()["id"]
 

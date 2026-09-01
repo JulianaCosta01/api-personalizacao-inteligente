@@ -16,12 +16,7 @@ def create_app() -> FastAPI:
         title="MPI — Personalização Inteligente de Materiais Didáticos",
         version="0.1.0",
     )
-    # CORSMiddleware é registrado primeiro (mais interno da pilha): quando ele
-    # intercepta um preflight e responde sem chamar o próximo app, a resposta
-    # ainda atravessa RequestIDMiddleware e SecurityHeadersMiddleware — que
-    # são BaseHTTPMiddleware e sempre pós-processam o que call_next devolver
-    # — a caminho de volta ao cliente. Isso garante X-Request-ID e os headers
-    # de segurança da Task 2 também em respostas de preflight, sem exceção.
+    # CORSMiddleware vai primeiro (mais interno): num preflight interceptado, a resposta ainda passa por RequestIDMiddleware e SecurityHeadersMiddleware, que sempre pós-processam via BaseHTTPMiddleware
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins_efetivas,

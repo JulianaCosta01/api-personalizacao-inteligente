@@ -8,14 +8,11 @@ logger = logging.getLogger(__name__)
 
 
 async def executar_loop(intervalo_segundos: float, ciclo: Callable[[], Awaitable[None]]) -> None:
-    """Loop contínuo de polling, sem busy waiting: cada iteração espera o
-    intervalo configurado antes da próxima tentativa. CancelledError propaga
-    para permitir encerramento limpo; qualquer outra exceção de um ciclo é
-    registrada e o loop continua — uma falha isolada não derruba o Worker.
-
-    Fase 11 — heartbeat atualizado ao final de toda iteração (sucesso ou
-    falha capturada), não só quando há trabalho: prova que o loop em si
-    segue vivo e ciclando, distinto de "o último job deu certo".
+    """Loop contínuo de polling, sem busy waiting: espera o intervalo configurado entre
+    tentativas. CancelledError propaga para encerramento limpo; qualquer outra exceção é
+    registrada e o loop continua. Heartbeat atualizado ao final de toda iteração (sucesso
+    ou falha), não só quando há trabalho — prova que o loop segue vivo, distinto de "o
+    último job deu certo".
     """
     while True:
         try:

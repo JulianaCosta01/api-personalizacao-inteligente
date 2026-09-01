@@ -14,18 +14,15 @@ class FilaPostgres(IQueuePort):
         self._session = session
 
     async def publicar(self, processamento_id: UUID) -> None:
-        # SAVEPOINT: uma falha real de banco aqui (ex.: violação de constraint)
-        # não pode envenenar a transação externa — o chamador (ex.:
-        # CriarProcessamentoUseCase) precisa da sessão ainda utilizável para
-        # marcar o Processamento como erro logo em seguida.
+        # SAVEPOINT: uma falha de constraint aqui não pode envenenar a transação
+        # externa, o chamador precisa da sessão utilizável depois.
         async with self._session.begin_nested():
             self._session.add(MensagemFila(id=uuid4(), processamento_id=processamento_id))
             await self._session.flush()
 
     async def reivindicar_proximo(self) -> UUID | None:
-        # UPDATE condicional: só um Worker consegue transicionar uma dada linha
-        # de pendente -> em_processamento. FOR UPDATE SKIP LOCKED evita que dois
-        # Workers concorrentes disputem a mesma linha candidata na subquery.
+        # UPDATE condicional: só um Worker transiciona uma linha de pendente para
+        # em_processamento; FOR UPDATE SKIP LOCKED evita disputa entre Workers.
         candidato = (
             select(ProcessamentoModel.id)
             .select_from(ProcessamentoModel)

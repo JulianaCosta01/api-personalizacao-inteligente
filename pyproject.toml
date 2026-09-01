@@ -20,14 +20,12 @@ dependencies = [
     "python-multipart>=0.0.12",
     # SDK oficial do Gemini; >=2.3.0 é o mínimo com suporte à Interactions API.
     "google-genai>=2.3.0",
-    # Pipeline de personalização (Fase 7): extração do Material (PDF) para
-    # Markdown, sem depender do SDK legado do protótipo.
+    # Pipeline de personalização: extração do Material (PDF) para Markdown.
     "pymupdf4llm>=0.0.17",
-    # Pipeline de personalização (Fase 7): conversão do conteúdo adaptado
-    # (Markdown) para HTML antes da geração do PDF final.
+    # Pipeline de personalização: conversão do conteúdo adaptado para HTML.
     "markdown>=3.7",
-    # Pipeline de personalização (Fase 7): renderização do HTML em PDF. Exige
-    # bibliotecas nativas (Pango/Cairo) na imagem de execução (Fase 11/Docker).
+    # Pipeline de personalização: renderização do HTML em PDF. Exige
+    # bibliotecas nativas (Pango/Cairo) na imagem de execução.
     "weasyprint>=62.0",
 ]
 
@@ -37,11 +35,9 @@ dev = [
     "pytest-asyncio>=0.24",
     "ruff>=0.7",
     "mypy>=1.13",
-    # stubs de tipo para markdown, usado pelo Pipeline de personalização (Fase 7).
+    # stubs de tipo para markdown, usado pelo Pipeline de personalização.
     "types-Markdown>=3.7",
-    # Teste de carga/concorrência da Fase 10 Task 2 (Documento 4 §18 cita Locust
-    # ou k6 como exemplo; Locust foi o formalmente aprovado). Usado somente por
-    # loadtest/ — nunca importado por src/ nem pela suíte pytest.
+    # Teste de carga/concorrência. Usado só por loadtest/, nunca por src/ ou pytest.
     "locust>=2.31",
 ]
 
@@ -50,7 +46,7 @@ dev = [
 line-length = 100
 target-version = "py313"
 src = ["src", "tests", "migrations", "loadtest"]
-# legado fora do padrão de lint novo até ser substituído (Documento 5, Seção 15)
+# legado fora do padrão de lint novo até ser substituído
 extend-exclude = ["modulos", "main.py", "limpar_latex.py"]
 
 [tool.ruff.lint]
@@ -79,10 +75,8 @@ extend-immutable-calls = [
     "fastapi.Form",
 ]
 
-# mypy: mais maduro que as alternativas para SQLAlchemy 2.0 (Mapped[]) e Pydantic v2.
-# plugin oficial do pydantic: sem ele, mypy trata BaseSettings como uma classe comum e
-# exige todos os campos sem default como argumento posicional de Settings() — mesmo
-# sabendo que em runtime eles vêm do .env/variáveis de ambiente, não do construtor.
+# Plugin oficial do pydantic: sem ele, mypy trata BaseSettings como classe comum
+# e exige todos os campos sem default como argumento posicional de Settings().
 [tool.mypy]
 plugins = ["pydantic.mypy"]
 python_version = "3.13"
@@ -100,7 +94,7 @@ no_implicit_optional = true
 module = "tests.*"
 disallow_untyped_defs = false
 
-# pymupdf4llm e weasyprint não publicam stubs nem py.typed (Fase 7, Pipeline).
+# pymupdf4llm e weasyprint não publicam stubs nem py.typed.
 [[tool.mypy.overrides]]
 module = ["pymupdf4llm", "weasyprint"]
 ignore_missing_imports = true
@@ -110,10 +104,8 @@ ignore_missing_imports = true
 pythonpath = ["src"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-# get_engine() é @lru_cache (Fase 2) e mantém um pool de conexões vivo entre
-# testes; com loop por função (padrão do pytest-asyncio), o segundo teste que
-# reusa o engine recebe conexões presas ao event loop já fechado do teste
-# anterior. Loop único por sessão mantém o pool consistente com o engine cacheado.
+# get_engine() é @lru_cache e mantém o pool vivo entre testes; loop por função
+# faria o segundo teste reusar conexões presas a um event loop já fechado.
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
 

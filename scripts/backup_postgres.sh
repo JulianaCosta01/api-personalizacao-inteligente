@@ -1,18 +1,6 @@
 #!/usr/bin/env bash
-# Backup do PostgreSQL self-hosted (Fase 11 — Documento 5 §185: "backup do
-# banco confirmado"). Documento 4 §19 presumia backup automático via Supabase
-# gerenciado; o banco oficial é self-hosted em Docker, por isso este script
-# cobre o critério de forma manual e testada (agendamento automático fica
-# fora deste escopo).
-#
-# pg_dump roda DENTRO do container postgres via `docker compose exec`, sem
-# exigir cliente Postgres instalado no host. Autenticação explícita com a
-# senha real do .env — nunca presume "trust" na conexão local do Postgres.
-# A senha é repassada ao processo do container via `docker compose exec -e
-# PGPASSWORD` SEM valor anexado: nesse formato o Docker propaga o valor já
-# exportado no ambiente deste script pela API do daemon, não pela linha de
-# comando — por isso PGPASSWORD nunca aparece em `ps aux` do host, nunca é
-# impresso e nunca é gravado em arquivo.
+# Backup manual do PostgreSQL self-hosted via `docker compose exec`. PGPASSWORD
+# é repassado pela API do Docker (nunca em argv), então não aparece em `ps aux`.
 set -euo pipefail
 
 DIRETORIO_RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -39,8 +27,7 @@ ARQUIVO="backups/${POSTGRES_DB}_${TIMESTAMP}.dump"
 export PGPASSWORD="$POSTGRES_PASSWORD"
 
 echo "Gerando backup de '${POSTGRES_DB}' em ${ARQUIVO}..."
-# -Fc: formato custom (comprimido, restaurável seletivamente com pg_restore)
-# — padrão recomendado pela documentação do Postgres para este porte de banco.
+# -Fc: formato custom, comprimido e restaurável seletivamente com pg_restore.
 docker compose exec -T -e PGPASSWORD postgres \
   pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc >"$ARQUIVO"
 

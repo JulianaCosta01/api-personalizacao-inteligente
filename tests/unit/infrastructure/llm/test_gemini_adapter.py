@@ -251,18 +251,8 @@ async def test_reescrita_nao_expoe_conteudo_do_material_no_log(
     assert conteudo_sensivel not in caplog.text
 
 
-# --- Fase 8 Task 6: resiliência (retry nativo do SDK) -----------------------
-#
-# Os testes acima cobrem o GeminiAdapter isoladamente, com um `_InteractionsFake`
-# que substitui `client.aio.interactions` por inteiro — apropriado para testar
-# a lógica do próprio adaptador (uma chamada por invocação), mas incapaz de
-# exercitar retry de verdade, porque o retry (Fase 8 Task 6) é executado PELO
-# SDK dentro de uma única chamada a `interactions.create`, não por um loop
-# escrito neste adaptador. Os testes abaixo usam um `genai.Client` real, com
-# `HttpRetryOptions` configurado exatamente como em
-# infrastructure/llm/cliente.py, e substituem apenas o transporte HTTP
-# (`httpx.MockTransport`) — validam o comportamento real do SDK com a
-# configuração que o projeto usa, sem depender de rede.
+# `_InteractionsFake` acima é bom para a lógica do adaptador, mas não exercita retry real,
+# que roda dentro do SDK. Os testes abaixo usam um genai.Client real, só trocando o transporte.
 
 
 def _cliente_com_retry(
@@ -273,12 +263,8 @@ def _cliente_com_retry(
     atraso_maximo: float = 0.05,
     jitter: float = 0.0,
 ) -> genai.Client:
-    # genai.Client constrói o lado síncrono (httpx.Client) e o assíncrono
-    # (httpx.AsyncClient) na inicialização, mesmo quando só o assíncrono
-    # (client.aio.interactions, usado pelo GeminiAdapter) é de fato chamado —
-    # sem um transporte explícito para os dois, o lado síncrono tenta resolver
-    # o proxy real do ambiente e falha. Um handler síncrono simples (nunca
-    # chamado nestes testes) evita esse problema sem exercitar rede alguma.
+    # genai.Client constrói também o lado síncrono na inicialização — sem transporte
+    # explícito ele tentaria resolver proxy real e falhar; o handler abaixo nunca é chamado.
     def _handler_sincrono_nao_usado(request: httpx.Request) -> httpx.Response:
         raise AssertionError("O lado síncrono do cliente não deveria ser chamado.")
 
@@ -298,10 +284,8 @@ def _cliente_com_retry(
 
 
 def test_timeout_total_padrao_e_igual_ao_timeout_por_tentativa() -> None:
-    # Sem timeout_total_segundos explícito (caso do Perfil, caminho síncrono —
-    # ver presentation/api/routers/perfil.py), o orçamento total cai para uma
-    # tentativa única: nenhuma mudança de comportamento para quem não passar
-    # o novo parâmetro.
+    # Sem timeout_total_segundos explícito (caminho síncrono do Perfil), o orçamento cai
+    # para uma tentativa única — nenhuma mudança de comportamento para quem não passar o parâmetro.
     adaptador = GeminiAdapter(cast(genai.Client, SimpleNamespace()), "modelo", 5.0)
 
     assert adaptador._timeout_total_segundos == 5.0
@@ -391,13 +375,8 @@ async def test_retry_esgotado_nao_expoe_detalhes_da_excecao_no_log(
 
 
 async def test_orcamento_total_pequeno_ainda_pode_interromper_o_retry() -> None:
-    # Interação central da Fase 8 Task 6: um orçamento total pequeno demais
-    # continua podendo cortar o retry pela metade via asyncio.wait_for — o
-    # que mudou não foi remover esse corte, e sim parar de usar o MESMO valor
-    # (pensado para uma tentativa única) como orçamento total por padrão. Aqui
-    # forçamos o cenário antigo de propósito (total == por tentativa) com um
-    # transporte lento, para provar que o corte ainda existe quando alguém
-    # configura um orçamento pequeno — o retry não "engana" o timeout externo.
+    # Um orçamento total pequeno ainda corta o retry pela metade via asyncio.wait_for — o
+    # retry não "engana" o timeout externo mesmo com total igual ao de uma tentativa só.
     async def handler(request: httpx.Request) -> httpx.Response:
         await asyncio.sleep(0.1)
         return httpx.Response(200, json={"id": "abc", "output_text": "tarde demais"})

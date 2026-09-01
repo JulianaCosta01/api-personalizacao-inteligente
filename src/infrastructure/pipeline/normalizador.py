@@ -1,8 +1,7 @@
 import re
 
-# Notação LaTeX inline não renderiza fora de um visualizador compatível — o
-# conteúdo final é lido como Markdown puro, então símbolos são convertidos
-# para Unicode legível antes da geração do PDF.
+# LaTeX inline não renderiza fora de um visualizador compatível; como o conteúdo
+# final é lido como Markdown puro, os símbolos são convertidos para Unicode.
 _SIMBOLOS = {
     r"\to": "→",
     r"\rightarrow": "→",

@@ -28,7 +28,7 @@ async def validar_token_servico(
 
     token = authorization.removeprefix(_PREFIXO_BEARER)
     # compare_digest em vez de "==": comparação em tempo constante, para não
-    # vazar o tamanho de acerto do token por timing (Documento 4, §13.1).
+    # vazar o tamanho de acerto do token por timing.
     if not hmac.compare_digest(token, settings.service_token):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

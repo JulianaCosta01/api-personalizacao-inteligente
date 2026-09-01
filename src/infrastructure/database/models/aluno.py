@@ -33,10 +33,8 @@ class Aluno(Base):
     data_cadastro: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
-    # "experimental"/"controle": categórico curto, imutável após a criação
-    # (Documento 3, §4.1). Sem CHECK — o Documento 4 §8 restringe CHECK apenas
-    # a Processamento.status; o conjunto fechado aqui é validado no schema
-    # Pydantic da API.
+    # "experimental"/"controle", imutável após criação (Documento 3 §4.1). Sem CHECK,
+    # Documento 4 §8 restringe CHECK a Processamento.status; validado no schema Pydantic.
     grupo_experimental: Mapped[str] = mapped_column(String(20), nullable=False)
 
     perfis: Mapped[list["PerfilAprendizagem"]] = relationship(back_populates="aluno")

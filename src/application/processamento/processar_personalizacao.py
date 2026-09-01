@@ -32,10 +32,8 @@ class ProcessarPersonalizacaoUseCase:
         self._material_personalizados = material_personalizado_repositorio
         self._storage = storage
         self._llm = llm
-        # Exposta para o chamador (Worker): se uma etapa POSTERIOR ao sucesso
-        # desta execução falhar (ex.: remoção da mensagem da fila) e desfizer a
-        # transação, é essa chave que precisa ser revertida do Storage — o PDF
-        # já foi enviado e não é desfeito junto com o rollback do banco.
+        # Exposta para o Worker: se uma etapa posterior ao sucesso falhar (ex.:
+        # remoção da mensagem da fila), essa é a chave a reverter do Storage.
         self.chave_pdf_gerada: str | None = None
 
     async def executar(self, processamento_id: UUID) -> Processamento:
@@ -111,10 +109,9 @@ class ProcessarPersonalizacaoUseCase:
     async def reverter_upload(self, chave: str) -> None:
         """Compensa um PDF já enviado ao Storage quando uma etapa posterior falha.
 
-        Pública porque também é usada pelo Worker (Fase 7) para reverter o
-        upload quando a remoção da mensagem da fila falha DEPOIS do sucesso
-        desta execução — nesse caso o rollback do banco desfaz o
-        MaterialPersonalizado, mas não o objeto já gravado no Storage.
+        Também é usada pelo Worker: se a remoção da mensagem da fila falhar
+        após o sucesso desta execução, o rollback do banco desfaz o
+        MaterialPersonalizado mas não o objeto já gravado no Storage.
         """
         try:
             await self._storage.remover(chave)

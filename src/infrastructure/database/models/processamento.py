@@ -15,9 +15,8 @@ if TYPE_CHECKING:
     from infrastructure.database.models.material_personalizado import MaterialPersonalizado
     from infrastructure.database.models.perfil import PerfilAprendizagem
 
-# Conjunto fechado de estados da máquina de estados (Documento 3, §14). Vive aqui
-# porque é a própria constraint do banco quem o expressa (CHECK) — o vocabulário
-# de domínio (enum Python) chega no módulo de Processamento na Fase 3.
+# Conjunto fechado de estados da máquina de estados (Documento 3 §14); vive aqui porque
+# é a própria constraint do banco (CHECK) que o expressa — o enum Python fica no Domínio.
 ESTADOS_PROCESSAMENTO = ("pendente", "em_processamento", "concluido", "erro")
 
 
@@ -37,10 +36,8 @@ class Processamento(Base):
         Index("ix_processamento_perfil_id", "perfil_id"),
         Index("ix_processamento_status", "status"),
         Index("ix_processamento_data_criacao", "data_criacao"),
-        # O nome final vira "ck_processamento_status_valido" — a convenção de
-        # Base.metadata (ck_%(table_name)s_%(constraint_name)s) sempre reaplica
-        # o prefixo sobre o `name` de um CheckConstraint, diferente de
-        # ForeignKey/UniqueConstraint, que respeitam o nome dado ao pé da letra.
+        # Nome final vira "ck_processamento_status_valido": a convenção de Base.metadata
+        # reaplica o prefixo sobre CheckConstraint.name, diferente de FK/UniqueConstraint.
         CheckConstraint(f"status IN {ESTADOS_PROCESSAMENTO}", name="status_valido"),
     )
 
@@ -70,9 +67,8 @@ class Processamento(Base):
     data_criacao: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
-    # inicio/fim marcam transições de estado futuras (Worker) — não são "criação
-    # de linha", por isso não recebem server_default: quem os preenche é a
-    # lógica de negócio da Fase 3+, no momento exato da transição.
+    # inicio/fim marcam transições de estado (Worker), não a criação da linha; sem
+    # server_default porque quem preenche é a lógica de negócio, no momento da transição.
     inicio: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     fim: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Mensagem de exceção/stack: tamanho imprevisível, Text para não arriscar

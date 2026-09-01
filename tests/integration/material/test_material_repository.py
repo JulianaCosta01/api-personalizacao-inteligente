@@ -68,9 +68,8 @@ async def test_atualizar_material_inexistente_levanta_lookup_error(
 
 
 async def test_listar_retorna_total_e_itens_paginados(db_session: AsyncSession) -> None:
-    # Filtra pelo prefixo único do próprio teste: outros testes (inclusive de
-    # API, que commitam de verdade) também gravam na mesma tabela, então a
-    # contagem só é exata se restrita aos registros que este teste criou.
+    # Filtra pelo prefixo único do teste: outros testes (inclusive de API, que
+    # commitam de verdade) também gravam na mesma tabela.
     repositorio = MaterialRepositorySQLAlchemy(db_session)
     prefixo = str(uuid4())
     for i in range(3):

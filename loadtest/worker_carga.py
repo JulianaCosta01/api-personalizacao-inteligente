@@ -2,21 +2,15 @@
 produção (src/worker/worker.py), com Storage e LLM substituídos pelos fakes de loadtest/fakes.py.
 Nunca chama Gemini nem Supabase Storage reais.
 
-Reaproveita, sem alterar nem duplicar:
-- worker.claim.reivindicar_processamento (claim via SKIP LOCKED)
-- worker.worker.processar_reivindicado (já aceita `fabrica_caso_de_uso` como parâmetro
-  injetável — ponto de extensão que já existia antes desta Task, criado na Fase 7
-  justamente para permitir fakes de Storage/LLM nos testes)
-- worker.worker.recuperar_processamentos_presos
-- worker.loop.executar_loop (loop de polling genérico)
-- core.logging.request_id_var (Fase 10, Task 1) — processamento_id continua sendo o
-  identificador de correlação; nenhuma mudança em core/logging.py.
+Reaproveita sem alterar: worker.claim.reivindicar_processamento,
+worker.worker.processar_reivindicado (já aceita `fabrica_caso_de_uso` injetável, ponto de
+extensão criado na Fase 7 para permitir fakes nos testes),
+worker.worker.recuperar_processamentos_presos, worker.loop.executar_loop e
+core.logging.request_id_var.
 
-A única coisa reimplementada aqui é o wrapper de correlação (set/reset de request_id_var),
-porque `executar_ciclo` (worker/worker.py) não expõe `fabrica_caso_de_uso` como parâmetro — não
-é um requisito do Worker de produção, só deste script. Adicionar esse parâmetro a
-`executar_ciclo` mudaria a assinatura pública do Worker de produção sem necessidade; manter os
-~6 linhas duplicadas aqui evita essa alteração de código de produção fora do escopo da Task.
+A única coisa reimplementada aqui é o wrapper de correlação (set/reset de request_id_var), porque
+`executar_ciclo` (worker/worker.py) não expõe `fabrica_caso_de_uso` como parâmetro — adicionar isso
+mudaria a assinatura pública do Worker de produção sem necessidade fora do escopo desta Task.
 
 Uso:
     PYTHONPATH=src uv run python -m loadtest.worker_carga --latencia-llm-segundos 2.0
@@ -52,10 +46,8 @@ FabricaCasoDeUso = Callable[[AsyncSession], ProcessarPersonalizacaoUseCase]
 
 def _construir_fabrica_de_carga(latencia_llm_segundos: float) -> FabricaCasoDeUso:
     def _fabrica(session: AsyncSession) -> ProcessarPersonalizacaoUseCase:
-        # Uma instância nova de cada fake por chamada: mesma vida útil de um
-        # Processamento, sem estado compartilhado indevido entre execuções
-        # concorrentes (mesma razão do GeminiAdapter real, que também não é
-        # compartilhado entre chamadas — ver worker.py:_construir_caso_de_uso).
+        # Instância nova por chamada, mesma vida útil de um Processamento — sem estado
+        # compartilhado entre execuções concorrentes (mesma razão do GeminiAdapter real).
         return ProcessarPersonalizacaoUseCase(
             ProcessamentoRepositorySQLAlchemy(session),
             MaterialRepositorySQLAlchemy(session),

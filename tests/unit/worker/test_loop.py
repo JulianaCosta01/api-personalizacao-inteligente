@@ -75,9 +75,8 @@ async def test_excecao_de_um_ciclo_nao_interrompe_o_loop() -> None:
 
 
 async def test_atualiza_o_heartbeat_a_cada_iteracao() -> None:
-    # A 3ª chamada lança CancelledError, que é relançada imediatamente por
-    # executar_loop (antes de atualizar_heartbeat) para permitir cancelamento
-    # limpo — por isso só as 2 iterações que completam normalmente contam.
+    # A 3ª chamada lança CancelledError, relançada imediatamente por executar_loop (antes de
+    # atualizar_heartbeat) para permitir cancelamento limpo — só as 2 primeiras contam.
     chamadas = 0
 
     async def ciclo() -> None:
@@ -97,11 +96,8 @@ async def test_atualiza_o_heartbeat_a_cada_iteracao() -> None:
 
 
 async def test_atualiza_o_heartbeat_mesmo_quando_um_ciclo_lanca_excecao() -> None:
-    # Heartbeat prova que o LOOP está vivo, não que o último job deu certo —
-    # por isso precisa ser chamado mesmo quando o ciclo falha (a exceção já é
-    # capturada e logada dentro de executar_loop, sem interromper o loop). A
-    # 2ª chamada lança CancelledError, relançada antes de atualizar_heartbeat
-    # (mesmo motivo do teste acima) — por isso só a 1ª iteração conta.
+    # Heartbeat prova que o LOOP está vivo, não que o job deu certo — por isso roda mesmo
+    # com o ciclo falhando. A 2ª chamada lança CancelledError antes dele, só a 1ª conta.
     chamadas = 0
 
     async def ciclo() -> None:

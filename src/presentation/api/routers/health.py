@@ -13,9 +13,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["health"])
 
-# Timeout curto de propósito: /ready precisa responder rápido mesmo quando o
-# banco está genuinamente fora do ar — sem isso, uma checagem travada faria o
-# próprio endpoint de prontidão parecer travado, o que derrota o objetivo dele.
+# Timeout curto de propósito: /ready precisa responder rápido mesmo com o banco fora do
+# ar — sem isso, uma checagem travada faria o próprio endpoint de prontidão parecer travado.
 _TIMEOUT_VERIFICACAO_SEGUNDOS = 3.0
 
 
@@ -41,9 +40,8 @@ def health_check(settings: Settings = Depends(get_settings)) -> HealthResponse:
 
 
 async def _consultar(instrucao: Executable) -> None:
-    # Conexão avulsa e curta do pool já existente (get_engine(), cacheado) —
-    # não abre um engine novo nem participa da transação de nenhuma
-    # requisição; é fechada assim que a checagem termina.
+    # Conexão avulsa e curta do pool já existente (get_engine(), cacheado) — não abre
+    # engine novo nem participa da transação de nenhuma requisição.
     async with get_engine().connect() as conexao:
         await conexao.execute(instrucao)
 

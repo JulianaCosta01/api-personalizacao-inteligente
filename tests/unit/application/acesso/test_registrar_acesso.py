@@ -84,9 +84,8 @@ async def test_primeira_chamada_cria_registro_e_retorna_criado_true() -> None:
     assert resultado.acesso.quantidade_acessos == 1
     assert resultado.acesso.tempo_total_leitura == 60
     assert resultado.acesso.status_leitura == StatusLeitura.EM_ANDAMENTO
-    # data_ultimo_acesso é sempre recalculada por registrar_acesso, inclusive na
-    # primeira chamada — não é garantido que coincida exatamente com o instante
-    # de construção da entidade (data_primeiro_acesso), só que não é anterior.
+    # data_ultimo_acesso é sempre recalculada, mesmo na primeira chamada — não é garantido
+    # que coincida com data_primeiro_acesso, só que não é anterior a ela.
     assert resultado.acesso.data_ultimo_acesso >= resultado.acesso.data_primeiro_acesso
 
 
@@ -130,8 +129,7 @@ async def test_processamento_inexistente_apos_material_valido_registra_warning(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     # Cenário defensivo: processamento_id é FK NOT NULL de material_personalizado
-    # (ondelete=RESTRICT) — não deveria ocorrer em uso normal, mas o use case
-    # precisa tratar e sinalizar a inconsistência.
+    # (ondelete=RESTRICT) — não deveria ocorrer em uso normal, mas o use case precisa tratar.
     processamentos = ProcessamentoRepositorioFake()
     material = _material(uuid4())
     materiais = MaterialPersonalizadoRepositorioFake()
@@ -185,7 +183,7 @@ async def test_aluno_id_diferente_do_dono_do_processamento_levanta_entrada_inval
         ).executar(
             RegistrarAcessoInput(
                 material_personalizado_id=cenario.material.id,
-                aluno_id=aluno_intruso,  # aluno diferente do dono do processamento
+                aluno_id=aluno_intruso,
                 tempo_leitura_incremento_segundos=10,
                 porcentagem_leitura=0.1,
                 download_realizado=False,

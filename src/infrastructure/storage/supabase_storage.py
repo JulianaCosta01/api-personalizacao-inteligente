@@ -9,12 +9,8 @@ class ErroDeStorage(Exception):
 
 
 def _validar_chave(chave: str) -> None:
-    # ".." e "/" absoluto cobrem traversal estilo Unix; "\\" cobre separador
-    # Windows (tanto "..\\" quanto caminhos absolutos como "C:\\..."); bytes
-    # nulos são rejeitados porque algumas APIs/filesystems truncam a string
-    # no primeiro \x00, permitindo contornar uma checagem de extensão feita
-    # antes deste ponto. Chaves geradas pelo próprio sistema (UUID) nunca
-    # contêm nenhum desses caracteres, então nada muda para o uso legítimo.
+    # Cobre traversal Unix/Windows (.., /, \) e bytes nulos, que alguns
+    # filesystems usam para truncar a string e contornar checagem de extensão.
     if ".." in chave or chave.startswith("/") or "\\" in chave or "\x00" in chave:
         raise ErroDeStorage("Chave de objeto inválida.")
 
@@ -52,11 +48,8 @@ class SupabaseStorageAdapter(IObjectStoragePort):
         return resposta.content
 
     async def criar_url_leitura(self, chave: str, expiracao_segundos: int) -> str:
-        # API do Supabase Storage: POST /object/sign/{bucket}/{chave} devolve
-        # {"signedURL": "/object/sign/{bucket}/{chave}?token=..."} — um path
-        # relativo à raiz do Storage, não uma URL completa. O cliente HTTP usado
-        # aqui já tem essa raiz como base_url (ver infrastructure/storage/cliente.py),
-        # então a URL final é essa base + o path devolvido, sem barra duplicada.
+        # API do Supabase Storage devolve {"signedURL": "/object/sign/.../token=..."}, um
+        # path relativo; o cliente HTTP já tem essa raiz como base_url (storage/cliente.py).
         _validar_chave(chave)
         resposta = await self._cliente.post(
             f"/object/sign/{self._bucket}/{chave}",

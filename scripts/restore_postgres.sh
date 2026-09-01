@@ -1,15 +1,6 @@
 #!/usr/bin/env bash
-# Restore do PostgreSQL self-hosted (Fase 11 — Documento 5 §185).
-#
-# Operação destrutiva: --clean --if-exists derruba e recria cada objeto do
-# banco alvo antes de restaurar o dump — por isso exige confirmação explícita
-# do nome do banco antes de prosseguir. --no-owner --no-privileges evitam
-# falha por divergência de papéis entre o ambiente do dump e o atual.
-#
-# Mesma estratégia de autenticação seguida em backup_postgres.sh: pg_restore
-# roda dentro do container via `docker compose exec`, com PGPASSWORD
-# propagado pela API do Docker (nunca em argv, nunca em arquivo) — ver
-# comentário completo lá.
+# Operação destrutiva: --clean --if-exists derruba e recria cada objeto do banco
+# alvo, por isso exige confirmação explícita do nome antes de prosseguir.
 set -euo pipefail
 
 DIRETORIO_RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
