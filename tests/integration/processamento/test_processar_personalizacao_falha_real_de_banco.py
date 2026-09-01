@@ -79,17 +79,10 @@ async def _cenario(session: AsyncSession) -> tuple[Processamento, MaterialDidati
 async def test_falha_real_de_integridade_ao_persistir_material_personalizado_marca_erro(
     db_session: AsyncSession,
 ) -> None:
-    """Fase 7, Etapa 5 — Problema 1 (reprodução de ponta a ponta).
-
-    Simula a colisão real que expôs o bug: já existe um MaterialPersonalizado
-    para este processamento_id (ex.: reprocessamento indevido) quando
-    executar() roda — o UniqueConstraint do banco rejeita a nova tentativa
-    dentro do try/except da Application com uma exceção real do driver, não
-    um RuntimeError de fake. Antes da correção (SAVEPOINT em
-    MaterialPersonalizadoRepositorySQLAlchemy.adicionar), a tentativa seguinte
-    de marcar o Processamento como erro levantava PendingRollbackError e a
-    própria exceção de integridade escapava de executar() sem o Processamento
-    jamais ser marcado como erro.
+    """Reprodução de ponta a ponta do bug: um MaterialPersonalizado já existente
+    para o processamento_id faz o UniqueConstraint do banco rejeitar a tentativa
+    com uma exceção real do driver. Antes do SAVEPOINT em adicionar(), isso
+    deixava o Processamento sem ser marcado como erro.
     """
     processamento, material = await _cenario(db_session)
     await MaterialPersonalizadoRepositorySQLAlchemy(db_session).adicionar(
@@ -116,14 +109,14 @@ async def test_falha_real_de_integridade_ao_persistir_material_personalizado_mar
         llm,
     )
 
-    # 1. A falha real ocorre (UniqueViolation), mas não escapa de executar().
+    # A falha real (UniqueViolation) ocorre, mas não escapa de executar().
     resultado = await caso_de_uso.executar(processamento.id)
 
-    # 2 e 3. A sessão continua utilizável e o Processamento é marcado como erro.
+    # A sessão continua utilizável e o Processamento é marcado como erro.
     assert resultado.status == StatusProcessamento.ERRO
     assert resultado.erro is not None
 
-    # 5. Nenhuma mensagem interna do driver/SQL vaza para o campo de erro.
+    # Nenhuma mensagem interna do driver/SQL vaza para o campo de erro.
     mensagem_erro = resultado.erro.lower()
     assert resultado.erro == "Falha ao processar a personalização do material."
     assert "duplicate" not in mensagem_erro
@@ -132,7 +125,7 @@ async def test_falha_real_de_integridade_ao_persistir_material_personalizado_mar
     assert "asyncpg" not in mensagem_erro
     assert "insert into" not in mensagem_erro
 
-    # 4. O estado de erro é efetivamente persistido no banco, não só em memória.
+    # O estado de erro é persistido no banco, não só em memória.
     persistido = await ProcessamentoRepositorySQLAlchemy(db_session).obter_por_id(processamento.id)
     assert persistido is not None
     assert persistido.status == StatusProcessamento.ERRO

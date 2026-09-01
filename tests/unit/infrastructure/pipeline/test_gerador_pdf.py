@@ -20,9 +20,8 @@ def test_gera_pdf_com_tabela_e_codigo() -> None:
 
 
 def test_gera_pdf_com_titulos_e_formulas_normalizadas() -> None:
-    # Fórmulas já chegam aqui normalizadas para Unicode (infrastructure.pipeline
-    # .normalizador, Etapa 2) — gerar_pdf só precisa continuar aceitando texto
-    # comum, sem qualquer referência a recurso externo.
+    # Fórmulas já chegam normalizadas para Unicode (infrastructure.pipeline.normalizador) —
+    # gerar_pdf só precisa continuar aceitando texto comum, sem referência a recurso externo.
     conteudo = "## Lógica proposicional\n\nSe A → B e A, então B (∴ modus ponens).\n"
 
     pdf = gerar_pdf(conteudo)
@@ -32,9 +31,8 @@ def test_gera_pdf_com_titulos_e_formulas_normalizadas() -> None:
 
 @contextmanager
 def _bloqueia_conexoes_de_rede() -> Iterator[None]:
-    # Prova mais forte que "não deu erro": se o WeasyPrint tentasse mesmo
-    # abrir uma conexão de rede para resolver a URL bloqueada, o teste falha
-    # imediatamente aqui, em vez de depender de timing ou de DNS de fato falhar.
+    # Prova mais forte que "não deu erro": se o WeasyPrint tentasse abrir uma conexão real,
+    # o teste falha aqui, em vez de depender de timing ou de DNS de fato falhar.
     def _levantar(*_args: object, **_kwargs: object) -> None:
         raise AssertionError("Nenhuma conexão de rede deveria ser aberta durante a geração do PDF.")
 

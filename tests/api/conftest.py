@@ -24,12 +24,8 @@ SERVICE_TOKEN = os.environ["SERVICE_TOKEN"]
 
 @pytest_asyncio.fixture(autouse=True)
 async def _sem_rate_limit_por_padrao() -> AsyncGenerator[None]:
-    # Os limitadores de POST /processamentos e POST /materiais são singletons
-    # de processo (lru_cache) — sem isto, os ~20 testes de cada endpoint que
-    # já existem (não relacionados a rate limit) acabariam disputando o mesmo
-    # contador de token e falhando de forma não determinística com 429 quando
-    # rodados juntos. Um limite alto neutraliza o rate limiting por padrão;
-    # tests/api/test_rate_limit.py sobrescreve com limites baixos de propósito.
+    # Limitadores de /processamentos e /materiais são singletons (lru_cache); sem
+    # neutralizá-los, testes fora de test_rate_limit.py disputam o mesmo contador e falham com 429.
     app.dependency_overrides[_limitador_processamentos] = lambda: LimitadorDeTaxa(
         limite=1_000_000, janela_segundos=60.0
     )
@@ -51,25 +47,8 @@ async def _tabelas() -> AsyncGenerator[None]:
 
 @pytest_asyncio.fixture
 async def _conexao_isolada() -> AsyncGenerator[async_sessionmaker[AsyncSession]]:
-    # TestClient síncrono roda a app num event loop próprio, incompatível com
-    # a engine assíncrona cacheada (get_engine): dá "Future attached to a
-    # different loop". AsyncClient sobre ASGITransport mantém tudo no mesmo
-    # loop da sessão de teste.
-    #
-    # get_db_session (produção) comita de verdade a cada requisição — é
-    # intencional (Documento 4, §8) e continua acontecendo aqui do ponto de
-    # vista da app. O que isola um teste do outro é ONDE esse commit acontece:
-    # a sessão injetada é amarrada a uma única conexão que já tem uma
-    # transação externa aberta antes da requisição, então cada "commit" de
-    # requisição só libera um SAVEPOINT dentro dela (join_transaction_mode=
-    # "create_savepoint", recomendado pela própria documentação do SQLAlchemy
-    # para suítes de teste). Ao final do teste essa transação externa é
-    # sempre revertida, então nada some persistido no Postgres efêmero para
-    # contaminar as suítes de integração quando `pytest tests/` roda tudo
-    # numa única sessão.
-    #
-    # Extraído do fixture `client` para poder ser compartilhado com `db_session`
-    # (mesma conexão/transação) — ver o fixture `db_session` abaixo.
+    # AsyncClient sobre ASGITransport evita conflito de loop com a engine assíncrona cacheada.
+    # Isolamento via transação externa com savepoints (create_savepoint), revertida no teardown.
     engine = get_engine()
     connection = await engine.connect()
     transacao_externa = await connection.begin()
@@ -110,12 +89,9 @@ async def client(
 async def db_session(
     _conexao_isolada: async_sessionmaker[AsyncSession],
 ) -> AsyncGenerator[AsyncSession]:
-    """Sessão para semear, via repositório, estado que a API pública sozinha não
-    alcança (ex.: um Processamento concluído com Material Personalizado, que só
-    o pipeline real do Worker cria). Usa a MESMA conexão/transação externa do
-    fixture `client` — dados gravados aqui ficam visíveis às requisições HTTP
-    feitas com `client` no mesmo teste, e tudo é revertido junto no teardown.
-    """
+    """Sessão para semear estado que a API sozinha não alcança (ex.: Processamento
+    concluído com Material Personalizado, que só o Worker cria). Usa a mesma
+    conexão/transação do fixture `client`, revertida junto no teardown."""
     async with _conexao_isolada() as session:
         yield session
         await session.commit()

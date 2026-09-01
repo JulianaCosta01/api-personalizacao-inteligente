@@ -218,13 +218,8 @@ async def test_processamento_liberado_pela_recuperacao_pode_ser_reivindicado_nov
 
 
 async def test_falha_ao_remover_da_fila_reverte_upload_e_preserva_estado_anterior() -> None:
-    """Fase 7, Etapa 5 — Problema 2.
-
-    Simula uma falha real na etapa POSTERIOR ao sucesso do Use Case: a
-    remoção da mensagem da fila. O rollback do Postgres (real, não mockado)
-    desfaz o MaterialPersonalizado e a marcação de concluído — mas o PDF já
-    enviado ao Storage não seria desfeito por esse rollback. A correção faz
-    o Worker reverter esse upload explicitamente antes de propagar o erro.
+    """Simula falha na remoção da fila após o sucesso do Use Case: o rollback do Postgres
+    desfaz o registro, mas não o PDF já enviado ao Storage — o Worker reverte esse upload à parte.
     """
     processamento, material = await _semear_processamento(
         status=StatusProcessamento.EM_PROCESSAMENTO, inicio=datetime.now(UTC)
@@ -244,31 +239,27 @@ async def test_falha_ao_remover_da_fila_reverte_upload_e_preserva_estado_anterio
             processamento.id, fabrica_caso_de_uso=_fabrica_com_fakes(storage, llm)
         )
 
-    # 1. O processamento NÃO fica falsamente concluído — a transação inteira
-    #    (real, Postgres) foi desfeita, permanecendo como estava antes.
+    # O processamento não fica falsamente concluído — a transação real (Postgres)
+    # foi desfeita, permanecendo como estava antes.
     atualizado = await _obter_processamento(processamento.id)
     assert atualizado is not None
     assert atualizado.status == StatusProcessamento.EM_PROCESSAMENTO
     assert atualizado.erro is None
 
-    # 2. A mensagem da fila permanece disponível (nunca chegou a ser
-    #    removida de fato, e o rollback também desfaria a remoção se tivesse).
+    # A mensagem da fila permanece disponível: nunca chegou a ser removida de fato.
     assert await _mensagem_na_fila(processamento.id) is True
 
-    # 3. MaterialPersonalizado não fica persistido indevidamente.
+    # MaterialPersonalizado não fica persistido indevidamente.
     assert await _material_personalizado_existe(processamento.id) is False
 
-    # 4. O PDF gerado é removido do Storage (reverter_upload executado) — e
-    #    não o PDF original do Material, que nunca deveria ser tocado.
+    # O PDF gerado é removido do Storage (reverter_upload), nunca o PDF original do Material.
     assert len(storage.removidos) == 1
     assert material.caminho_storage not in storage.removidos
 
 
 async def test_falha_no_cleanup_apos_falha_na_remocao_da_fila_nao_esconde_erro_original() -> None:
-    """Se o próprio cleanup do Storage falhar, o erro ORIGINAL (falha ao
-    remover da fila) continua sendo o que se propaga — reverter_upload já
-    é projetado para nunca mascarar a causa raiz (Etapa 3), e essa garantia
-    precisa continuar valendo quando acionado a partir do Worker."""
+    """Se o cleanup do Storage falhar, o erro original (falha ao remover da
+    fila) continua sendo o que se propaga — reverter_upload nunca mascara a causa raiz."""
     processamento, material = await _semear_processamento(
         status=StatusProcessamento.EM_PROCESSAMENTO, inicio=datetime.now(UTC)
     )

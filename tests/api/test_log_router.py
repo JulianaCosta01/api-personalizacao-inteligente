@@ -164,9 +164,8 @@ async def test_post_logs_com_aluno_dono_do_processamento_retorna_201(
 async def test_post_logs_com_aluno_diferente_do_dono_do_processamento_retorna_400(
     client: AsyncClient, db_session: AsyncSession
 ) -> None:
-    # Fase 9 Task 4A: aluno_id (corpo) e processamento_id (corpo) precisam
-    # apontar para a mesma pessoa — mesma proteção BOLA/IDOR já existente em
-    # PUT /materiais-personalizados/{id}/acesso (Documento 4, §13.2).
+    # aluno_id e processamento_id (corpo) precisam apontar para a mesma pessoa,
+    # mesma proteção BOLA/IDOR já existente em PUT /materiais-personalizados/{id}/acesso.
     dono_id = await _criar_aluno(client)
     outro_aluno_id = await _criar_aluno(client)
     processamento = await _criar_processamento(db_session, dono_id)

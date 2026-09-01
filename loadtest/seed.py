@@ -1,13 +1,11 @@
 """Semeia Aluno + Material Didático + Perfil direto via repositórios (Fase 10, Task 2).
 
-POST /api/v1/processamentos exige um Aluno, um Material Didático e um Perfil já cadastrados
-(ver application/processamento/criar_processamento.py). Este script cria esses três recursos
-SEM passar pela API — motivo: `POST /alunos/{id}/perfil` chama o Gemini de forma síncrona (ver
-presentation/api/routers/perfil.py) e `POST /materiais` chama o Object Storage real; nenhum dos
-dois deve ser tocado só para preparar dados de teste. O padrão de composição direta via
-repositórios já existe em tests/integration/queue/test_fila_postgres.py::_criar_processamento —
-este script reaproveita o mesmo padrão (repositórios SQLAlchemy existentes), só parando antes de
-criar o Processamento em si, que é o próprio POST que o Locust vai disparar.
+POST /api/v1/processamentos exige um Aluno, um Material Didático e um Perfil já cadastrados.
+Este script cria os três SEM passar pela API: `POST /alunos/{id}/perfil` chama o Gemini de
+forma síncrona e `POST /materiais` chama o Object Storage real, e nenhum dos dois deve ser
+tocado só para preparar dados de teste. Reaproveita o mesmo padrão de composição direta via
+repositórios já usado em tests/integration/queue/test_fila_postgres.py::_criar_processamento,
+parando antes de criar o Processamento (que é o próprio POST que o Locust dispara).
 
 NUNCA rodar contra um banco de produção — grava dados sintéticos, sem vínculo com alunos reais.
 

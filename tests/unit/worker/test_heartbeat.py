@@ -41,9 +41,8 @@ def test_heartbeat_respeita_a_borda_do_limite(tmp_path: Path) -> None:
 
 
 def test_comportamento_seguro_apos_reinicio_do_container(tmp_path: Path) -> None:
-    # Simula um container novo: /tmp é efêmero por container, então o
-    # heartbeat da execução anterior não existe mais até a primeira
-    # iteração real do loop (worker/loop.py) chamar atualizar_heartbeat().
+    # Simula um container novo: /tmp é efêmero por container, então o heartbeat da execução
+    # anterior não existe mais até a primeira iteração do loop chamar atualizar_heartbeat().
     caminho = tmp_path / "heartbeat"
 
     assert heartbeat_esta_valido(60.0, caminho=caminho) is False
@@ -54,12 +53,11 @@ def test_comportamento_seguro_apos_reinicio_do_container(tmp_path: Path) -> None
 
 
 def test_atualizar_heartbeat_nao_lanca_quando_caminho_e_invalido(tmp_path: Path) -> None:
-    # Diretório em vez de arquivo: write_text falha com OSError/IsADirectoryError
-    # — atualizar_heartbeat precisa engolir isso, não derrubar o Worker por
-    # causa de uma falha de escrita do heartbeat em si.
+    # Diretório em vez de arquivo: write_text falha com OSError/IsADirectoryError —
+    # atualizar_heartbeat precisa engolir isso, não derrubar o Worker por causa disso.
     caminho_invalido = tmp_path  # é um diretório, não um arquivo
 
-    atualizar_heartbeat(caminho=caminho_invalido)  # não deve lançar
+    atualizar_heartbeat(caminho=caminho_invalido)
 
 
 def test_limite_padrao_deriva_de_settings_existentes_sem_valor_novo_de_configuracao() -> None:

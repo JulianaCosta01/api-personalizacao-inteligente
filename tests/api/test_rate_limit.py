@@ -35,9 +35,8 @@ class _RelogioFalso:
 
 @pytest_asyncio.fixture(autouse=True)
 async def dependencias_externas_fake() -> AsyncGenerator[None]:
-    # Mesmas dependências externas dubladas em test_processamento_router.py —
-    # o cenário deste arquivo também passa pelo fluxo real de criação de
-    # Aluno/Material/Perfil/Processamento antes de exercitar o rate limit.
+    # Mesmas dependências dubladas em test_processamento_router.py: o cenário aqui também
+    # passa pelo fluxo real de criação de Aluno/Material/Perfil/Processamento antes do limite.
     app.dependency_overrides[_storage_material] = lambda: ObjectStorageFake()
     app.dependency_overrides[_llm] = lambda: LLMFake()
     app.dependency_overrides[_fila] = lambda: QueueFake()
@@ -100,10 +99,8 @@ async def _post_processamento(client: AsyncClient, aluno_id: str, material_id: s
 
 
 def _sobrescrever_limitador_processamentos(limite: int, relogio: _RelogioFalso) -> None:
-    # A instância precisa ser criada UMA vez fora do lambda: o FastAPI chama a
-    # dependency override a cada requisição, então um lambda que construísse
-    # um LimitadorDeTaxa novo por chamada nunca acumularia contagem alguma
-    # entre requisições dentro do mesmo teste.
+    # A instância precisa ser criada uma vez fora do lambda: o FastAPI chama o
+    # override a cada requisição, e um LimitadorDeTaxa novo por chamada nunca acumularia contagem.
     limitador = LimitadorDeTaxa(limite=limite, janela_segundos=60.0, relogio=relogio)
     app.dependency_overrides[_limitador_processamentos] = lambda: limitador
 
@@ -166,9 +163,8 @@ async def test_post_processamentos_janela_expira_e_libera_novas_requisicoes(
 async def test_post_processamentos_bloqueado_nao_chega_a_criar_registro(
     client: AsyncClient,
 ) -> None:
-    # O 429 precisa interromper a requisição antes de qualquer efeito
-    # colateral (nenhum Processamento novo persistido) — não é só o código
-    # HTTP que importa, é também não ter processado nada além da checagem.
+    # O 429 precisa interromper antes de qualquer efeito colateral (nenhum
+    # Processamento novo persistido), não só o código HTTP.
     _sobrescrever_limitador_processamentos(limite=1, relogio=_RelogioFalso())
     aluno_id, material_id = await _cenario_completo(client)
     await _post_processamento(client, aluno_id, material_id)
@@ -239,8 +235,7 @@ async def test_post_processamentos_sem_token_retorna_401_sem_consumir_limite(
     client: AsyncClient,
 ) -> None:
     # validar_token_servico roda antes do limitador (Depends dentro de
-    # limitar_processamentos) — uma requisição sem token nunca chega a
-    # incrementar o contador.
+    # limitar_processamentos); sem token, a requisição nunca chega a incrementar o contador.
     relogio = _RelogioFalso()
     _sobrescrever_limitador_processamentos(limite=1, relogio=relogio)
     aluno_id, material_id = await _cenario_completo(client)

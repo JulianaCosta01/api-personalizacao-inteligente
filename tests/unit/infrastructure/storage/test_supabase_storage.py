@@ -150,9 +150,8 @@ async def test_obter_rejeita_chave_com_path_traversal() -> None:
 
 
 async def test_salvar_rejeita_chave_com_barra_invertida() -> None:
-    # Fase 7, Etapa 6 — Item 5: separador estilo Windows, usado tanto para
-    # traversal ("..\\..\\etc\\passwd") quanto para caminhos absolutos
-    # ("C:\\Windows\\System32").
+    # Separador estilo Windows, usado tanto para traversal ("..\\..\\etc\\passwd") quanto
+    # para caminhos absolutos ("C:\\Windows\\System32").
     adaptador = SupabaseStorageAdapter(_cliente(lambda r: httpx.Response(200)), bucket="materiais")
 
     with pytest.raises(ErroDeStorage):
@@ -222,9 +221,8 @@ async def test_criar_url_leitura_envia_metodo_caminho_e_expiracao_corretos() -> 
 
 
 async def test_criar_url_leitura_monta_url_absoluta_sem_barra_duplicada() -> None:
-    # A base_url do cliente HTTP sempre tem barra final (normalização do
-    # próprio httpx); o path assinado devolvido pelo Supabase começa com "/" —
-    # a concatenação não pode duplicar a barra entre os dois.
+    # A base_url do cliente HTTP sempre tem barra final (normalização do próprio httpx); o
+    # path assinado devolvido pelo Supabase começa com "/" — a concatenação não pode duplicar.
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"signedURL": "/object/sign/materiais/x.pdf?token=abc123"})
 

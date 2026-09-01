@@ -55,9 +55,8 @@ def _storage_material(settings: Settings = Depends(get_settings)) -> IObjectStor
 
 
 async def _ler_arquivo(arquivo: UploadFile, limite_bytes: int) -> bytes:
-    # Lê em blocos e aborta assim que o limite é ultrapassado, em vez de
-    # confiar no Content-Length declarado pelo cliente ou carregar o arquivo
-    # inteiro antes de checar o tamanho.
+    # Lê em blocos e aborta assim que o limite é ultrapassado, em vez de confiar no
+    # Content-Length declarado pelo cliente ou carregar o arquivo inteiro antes de checar o tamanho.
     pedacos = bytearray()
     while bloco := await arquivo.read(_TAMANHO_BLOCO_LEITURA):
         pedacos.extend(bloco)

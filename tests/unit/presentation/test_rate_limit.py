@@ -37,7 +37,7 @@ def test_janela_expira_e_libera_novas_requisicoes() -> None:
     assert limitador.permitir("token-x") is True
     assert limitador.permitir("token-x") is False
 
-    relogio.avancar(60.0)  # janela seguinte
+    relogio.avancar(60.0)
 
     assert limitador.permitir("token-x") is True
 

@@ -33,10 +33,8 @@ def test_rejeita_pdf_acima_do_tamanho_maximo() -> None:
 
 
 def test_respeita_o_limite_configurado_em_settings_nao_um_valor_fixo() -> None:
-    # Settings é a única fonte de verdade (Fase 7, Etapa 6): um PDF válido e
-    # pequeno, mas acima do limite CONFIGURADO (não do antigo valor fixo de
-    # 10MB), precisa ser rejeitado — prova que o teto vem de Settings a cada
-    # chamada, não de uma constante congelada no módulo.
+    # Settings é a única fonte de verdade: um PDF pequeno mas acima do limite configurado
+    # precisa ser rejeitado — prova que o teto não é uma constante fixa no módulo.
     conteudo = pdf_valido("x") + b"0" * 2048
 
     with (

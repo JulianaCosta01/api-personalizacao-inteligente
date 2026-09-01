@@ -1,8 +1,7 @@
 import os
 
-# Campos obrigatórios de Settings (sem default, de propósito). Os testes
-# declaram os próprios valores aqui, em vez de depender de um .env local que
-# não existe em CI, e sem enfraquecer o fail-fast do Settings em produção.
+# Campos obrigatórios de Settings, sem default de propósito: os testes declaram os
+# próprios valores aqui em vez de depender de um .env que não existe em CI.
 os.environ.setdefault(
     "DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5433/mpi_test"
 )

@@ -18,9 +18,8 @@ class MaterialPersonalizado(Base):
 
     __tablename__ = "material_personalizado"
     __table_args__ = (
-        # UNIQUE em processamento_id expressa a cardinalidade 1:1 e já serve como
-        # índice de busca por FK — um Index separado seria redundante (mesma
-        # coluna à esquerda).
+        # UNIQUE em processamento_id expressa a cardinalidade 1:1 e já serve de índice
+        # de busca por FK — um Index separado seria redundante (mesma coluna à esquerda).
         UniqueConstraint("processamento_id", name="uq_material_personalizado_processamento_id"),
     )
 

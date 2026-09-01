@@ -29,18 +29,11 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    """Headers de segurança exigidos pelo Documento 4, §13.7 — aplicados a
-    toda resposta, inclusive Swagger/ReDoc/OpenAPI, já que o próprio §13.7
-    não abre exceção para eles.
+    """Headers de segurança exigidos pelo Documento 4, §13.7 — aplicados a toda
+    resposta, inclusive Swagger/ReDoc/OpenAPI.
 
-    X-Content-Type-Options e X-Frame-Options não têm variação por ambiente no
-    texto do §13.7. Strict-Transport-Security é a exceção: só faz sentido
-    logicamente sobre HTTPS (um navegador ignora o header recebido em HTTP
-    puro), mas em produção real, atrás de TLS, precisa estar presente — por
-    isso é condicionado a `environment == "production"`, seguindo o padrão já
-    estabelecido no Documento 4 §12 de que diferenças de comportamento por
-    ambiente passam pelo único ponto de configuração (Settings), nunca por
-    lógica espalhada.
+    Strict-Transport-Security só é enviado em produção: só faz sentido sobre HTTPS,
+    e o ambiente vem de Settings (Documento 4 §12), nunca de lógica espalhada.
     """
 
     def __init__(self, app: ASGIApp, environment: str) -> None:

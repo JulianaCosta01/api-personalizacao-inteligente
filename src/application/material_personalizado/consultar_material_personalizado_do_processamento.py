@@ -47,8 +47,7 @@ class ConsultarMaterialPersonalizadoDoProcessamentoUseCase:
         )
         if material is None:
             # Defensivo: o Worker sempre grava o material antes de marcar o
-            # processamento como concluido (Documento 3 §12, etapa 18) — chegar
-            # aqui indica inconsistência de dados, não ausência documentada.
+            # processamento CONCLUIDO (Documento 3 §12) — chegar aqui indica inconsistência.
             logger.warning(
                 "Processamento %s está CONCLUIDO mas não possui material "
                 "personalizado associado — inconsistência de dados.",

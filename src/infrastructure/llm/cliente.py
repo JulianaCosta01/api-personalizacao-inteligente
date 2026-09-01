@@ -11,11 +11,8 @@ def get_gemini_client() -> genai.Client:
     settings = get_settings()
     return genai.Client(
         api_key=settings.gemini_api_key,
-        # Fase 8 Task 6: retry nativo do SDK (backoff exponencial + jitter),
-        # não um loop manual — cobre tanto client.aio.models quanto
-        # client.aio.interactions (usado pelo GeminiAdapter), que traduz este
-        # HttpOptions.retry_options para sua própria configuração de retry.
-        # Códigos retentáveis usam o default do SDK (408, 429, 5xx).
+        # Retry nativo do SDK (backoff exponencial + jitter), cobre client.aio.interactions
+        # (usado pelo GeminiAdapter). Códigos retentáveis: default do SDK.
         http_options=types.HttpOptions(
             retry_options=types.HttpRetryOptions(
                 attempts=settings.gemini_retry_tentativas,

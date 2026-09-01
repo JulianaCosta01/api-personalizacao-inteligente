@@ -10,9 +10,8 @@ class MaterialPersonalizadoResponse(BaseModel):
     id: UUID
     processamento_id: UUID
     titulo: str
-    # URL assinada e temporária (Documento 3, §7) — nunca o caminho/chave bruto
-    # do Object Storage. Montada no router a partir de IObjectStoragePort,
-    # substituindo o valor já presente no domínio (a chave de armazenamento).
+    # URL assinada e temporária (Documento 3, §7), nunca o caminho/chave bruto do Object
+    # Storage — montada no router a partir de IObjectStoragePort, substituindo a chave do domínio.
     caminho_pdf: str
     resumo: str
     data_geracao: datetime

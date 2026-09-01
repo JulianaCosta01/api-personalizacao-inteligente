@@ -35,9 +35,8 @@ class LogInteracao(Base):
         ForeignKey("processamento.id", ondelete="RESTRICT", name="fk_log_processamento_id"),
         nullable=True,
     )
-    # Identificador de evento do catálogo (Documento 3, §10); 100 dá folga real
-    # sobre o maior nome de evento sem permitir texto livre longo — esse é o
-    # papel de descricao.
+    # Identificador de evento do catálogo (Documento 3 §10); 100 dá folga real sobre o
+    # maior nome de evento, sem virar texto livre longo — esse é o papel de descricao.
     acao: Mapped[str] = mapped_column(String(100), nullable=False)
     # Texto livre opcional (Documento 3, §4.6).
     descricao: Mapped[str | None] = mapped_column(Text, nullable=True)

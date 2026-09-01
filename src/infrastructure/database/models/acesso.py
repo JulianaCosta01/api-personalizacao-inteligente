@@ -22,13 +22,8 @@ class AcessoMaterialPersonalizado(Base):
 
     __tablename__ = "acesso"
     __table_args__ = (
-        # Chave natural do registro (Documento 3, §4.7): material_personalizado_id
-        # (path) + aluno_id (corpo). A cardinalidade "1:1 com Material
-        # Personalizado" descrita no Documento 2 §4.1 é, na prática, garantida
-        # indiretamente — cada Material Personalizado só é acessível pelo aluno
-        # do Processamento que o originou — mas a constraint física que o
-        # Documento 4 §8 define é esta, composta, não uma UNIQUE de coluna única
-        # em material_personalizado_id.
+        # Chave natural (Documento 3 §4.7): material_personalizado_id + aluno_id. A
+        # cardinalidade 1:1 é garantida só indiretamente; Documento 4 §8 exige esta UNIQUE composta.
         UniqueConstraint(
             "material_personalizado_id",
             "aluno_id",
@@ -46,27 +41,21 @@ class AcessoMaterialPersonalizado(Base):
         ),
         nullable=False,
     )
-    # Sem índice simples adicional: a UniqueConstraint composta acima já cobre
-    # buscas por material_personalizado_id (coluna à esquerda do índice); não há
-    # endpoint que filtre acesso por aluno_id isolado (Documento 3, §4.7), então
-    # um índice dedicado a essa coluna não teria justificativa de uso.
+    # Sem índice adicional: a UniqueConstraint composta já cobre buscas por
+    # material_personalizado_id; nenhum endpoint filtra por aluno_id isolado (Documento 3 §4.7).
     aluno_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("aluno.id", ondelete="RESTRICT", name="fk_acesso_aluno_id"),
         nullable=False,
     )
-    # Preenchidos explicitamente pela lógica de negócio no primeiro/nos
-    # sucessivos PUT — nunca nulos depois que a linha existe, mas sem
-    # server_default: quem primeiro os grava é a Fase 3+, não o schema.
+    # Preenchidos pela lógica de negócio no primeiro/sucessivos PUT, nunca nulos depois que
+    # a linha existe; sem server_default porque quem grava é a aplicação, não o schema.
     data_primeiro_acesso: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     data_ultimo_acesso: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     tempo_total_leitura: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     quantidade_acessos: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
-    # Numeric em vez de Float: porcentagem_leitura decide status_leitura em
-    # limites exatos (0% e 100%, Documento 3 §4.7); Float é ponto flutuante
-    # binário e arredondamentos acumulados ao longo de vários PUTs poderiam
-    # deixar o valor a um épsilon de 1.0 sem nunca fechar em "CONCLUIDO".
-    # Numeric(5, 4) representa exatamente frações entre 0 e 1 com quatro casas.
+    # Numeric em vez de Float: status_leitura depende de limites exatos (0% e 100%,
+    # Documento 3 §4.7); float acumularia erro e nunca fecharia em "CONCLUIDO".
     porcentagem_leitura: Mapped[float] = mapped_column(
         Numeric(5, 4), nullable=False, server_default="0"
     )

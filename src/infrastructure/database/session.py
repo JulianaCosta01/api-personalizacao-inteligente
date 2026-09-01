@@ -17,8 +17,8 @@ def _session_factory() -> async_sessionmaker[AsyncSession]:
 @asynccontextmanager
 async def sessao_transacional() -> AsyncIterator[AsyncSession]:
     """Uma AsyncSession por escopo de uso: commit se não houver exceção, rollback
-    caso contrário. Usada tanto pela API (via get_db_session) quanto pelo Worker
-    (Fase 7), que não tem um ciclo de vida de requisição HTTP para se apoiar.
+    caso contrário. Usada pela API (via get_db_session) e pelo Worker, que não
+    tem um ciclo de vida de requisição HTTP para se apoiar.
     """
     async with _session_factory()() as session:
         try:

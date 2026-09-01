@@ -1,10 +1,8 @@
 from sqlalchemy import MetaData
 from sqlalchemy.orm import DeclarativeBase
 
-# Convenção explícita de nomes (Alembic recomenda isso para autogenerate produzir
-# nomes estáveis e previsíveis, em vez dos nomes que o Postgres geraria sozinho,
-# como "processamento_status_check1" — que mudam de projeto para projeto e
-# dificultam ler uma migration ou uma mensagem de erro de IntegrityError).
+# Convenção explícita de nomes: Alembic recomenda isso para autogenerate produzir nomes
+# estáveis, em vez dos que o Postgres geraria sozinho (ex. "processamento_status_check1").
 NAMING_CONVENTION = {
     "ix": "ix_%(table_name)s_%(column_0_name)s",
     "uq": "uq_%(table_name)s_%(column_0_name)s",

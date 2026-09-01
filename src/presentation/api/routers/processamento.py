@@ -93,9 +93,8 @@ async def cadastrar_processamento(
             aluno_id=dados.aluno_id, material_didatico_id=dados.material_didatico_id
         )
     )
-    # Falha ao publicar já foi persistida como erro pelo Use Case; aqui só
-    # traduzimos esse estado para o código HTTP, sem lançar exceção (que
-    # desfaria a própria marcação de erro via rollback da transação).
+    # Falha ao publicar já foi persistida como erro pelo Use Case; aqui só traduzimos esse
+    # estado para o código HTTP, sem lançar exceção (que desfaria a marcação via rollback).
     if processamento.status == StatusProcessamento.ERRO:
         response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
     return ProcessamentoResponse.model_validate(processamento)

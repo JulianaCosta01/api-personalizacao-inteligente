@@ -1,15 +1,11 @@
 """Heartbeat do Worker (Fase 11 — Documento 5 §185; Documento 4 §19).
 
-Sem Redis nem infraestrutura externa nova: um arquivo local em /tmp, escrito
-pelo próprio processo do Worker a cada iteração do loop (worker/loop.py) e
-lido pelo healthcheck do Docker Compose (`python -m worker.heartbeat`).
+Sem Redis: arquivo local em /tmp, escrito a cada iteração do loop (worker/loop.py) e
+lido pelo healthcheck do Compose (`python -m worker.heartbeat`).
 
-Escritor único, sem lock: o Worker roda um único processo com um loop
-sequencial (nunca duas iterações concorrentes), então não há disputa de
-escrita a proteger. Seguro após reinício do container: /tmp é efêmero por
-container, então um container novo começa sem heartbeat residual — o
-`start_period` do healthcheck do Compose cobre essa janela inicial antes da
-primeira iteração completar.
+Escritor único, sem lock: o loop é sequencial, nunca concorrente. /tmp é efêmero por
+container, então um restart começa sem heartbeat residual — o `start_period` do
+healthcheck cobre essa janela antes da primeira iteração completar.
 """
 
 import contextlib
@@ -47,11 +43,9 @@ def heartbeat_esta_valido(idade_maxima_segundos: float, caminho: Path = _CAMINHO
 
 
 def limite_padrao_segundos() -> float:
-    """Pior caso plausível de um ciclo real: intervalo de polling entre
-    tentativas + orçamento total de uma chamada ao Gemini (a etapa mais longa
-    de um ciclo, Settings.gemini_timeout_total_segundos) + margem para
-    extração/geração de PDF. Derivado de Settings já existentes — nenhum
-    valor novo de configuração foi introduzido.
+    """Pior caso plausível de um ciclo real: polling + orçamento total de uma chamada ao
+    Gemini (a etapa mais longa, gemini_timeout_total_segundos) + margem para PDF. Deriva
+    de Settings já existentes, sem introduzir configuração nova.
     """
     settings = get_settings()
     margem_pipeline_segundos = 30.0

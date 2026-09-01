@@ -34,9 +34,8 @@ async def test_ciclo_processa_o_processamento_reivindicado() -> None:
 
 
 async def test_ciclo_com_recuperacao_periodica_nao_recupera_antes_do_intervalo() -> None:
-    # Fase 7, Etapa 6 — Item 2: logo após construído (equivalente a logo após
-    # a recuperação já feita na inicialização do Worker), nenhuma chamada
-    # deveria dever recuperação — o intervalo configurado ainda não passou.
+    # Logo após construído (equivalente a logo após a recuperação da inicialização do Worker),
+    # nenhuma chamada deveria dever recuperação — o intervalo configurado ainda não passou.
     with (
         patch("worker.worker.reivindicar_processamento", new=AsyncMock(return_value=None)),
         patch("worker.worker.recuperar_processamentos_presos", new=AsyncMock()) as recuperar_mock,
@@ -50,9 +49,8 @@ async def test_ciclo_com_recuperacao_periodica_nao_recupera_antes_do_intervalo()
 
 
 async def test_ciclo_com_recuperacao_periodica_dispara_apos_intervalo_decorrido() -> None:
-    # Com intervalo 0.0, toda iteração já está "vencida" — prova que a
-    # recuperação periódica de fato dispara quando o tempo configurado passa,
-    # sem depender de nenhum scheduler externo.
+    # Com intervalo 0.0, toda iteração já está "vencida" — prova que a recuperação periódica
+    # dispara quando o tempo configurado passa, sem depender de nenhum scheduler externo.
     with (
         patch("worker.worker.reivindicar_processamento", new=AsyncMock(return_value=None)),
         patch("worker.worker.recuperar_processamentos_presos", new=AsyncMock()) as recuperar_mock,
@@ -66,10 +64,8 @@ async def test_ciclo_com_recuperacao_periodica_dispara_apos_intervalo_decorrido(
 
 
 async def test_ciclo_com_recuperacao_periodica_nao_interfere_no_polling_normal() -> None:
-    # A recuperação periódica é uma etapa A MAIS dentro do ciclo, nunca no
-    # lugar do claim/processamento normal: reivindicar_processamento e
-    # processar_reivindicado continuam sendo chamados em toda iteração,
-    # esteja ou não a recuperação também devida naquela iteração.
+    # A recuperação periódica é uma etapa A MAIS dentro do ciclo, nunca no lugar do
+    # claim/processamento normal: reivindicar/processar continuam sendo chamados sempre.
     processamento_id = uuid4()
     with (
         patch(
@@ -179,14 +175,8 @@ async def test_dois_processamentos_consecutivos_nao_compartilham_o_mesmo_request
 async def test_logs_emitidos_durante_o_processamento_carregam_o_mesmo_request_id(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    # Prova a integração real, não só o ContextVar isolado: um logger
-    # arbitrário chamado durante o processamento (simulando
-    # processar_personalizacao.py/gemini_adapter.py) é formatado pelo
-    # JsonFormatter de verdade — sem nenhuma alteração em core/logging.py — e
-    # o resultado carrega o processamento_id. A formatação precisa acontecer
-    # DENTRO do contexto (enquanto request_id_var ainda está definido), por
-    # isso é feita no próprio side_effect, não depois que executar_ciclo já
-    # tiver restaurado o contexto.
+    # Prova a integração real: um logger arbitrário é formatado pelo JsonFormatter de verdade
+    # e carrega o processamento_id. Formatação precisa ocorrer dentro do contexto, no side_effect.
     processamento_id = uuid4()
     logger_do_pipeline = logging.getLogger("worker.teste_pipeline")
     payloads_formatados: list[dict[str, str]] = []

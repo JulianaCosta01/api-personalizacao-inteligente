@@ -1,15 +1,12 @@
 """Fakes de ILLMPort e IObjectStoragePort usados SOMENTE pelo Worker de carga
 (loadtest/worker_carga.py) — nunca por src/, nunca em produção.
 
-Mesma razão já aprovada para isolar o Gemini do teste de carga (Fase 10, Task 2): medir o
-comportamento do próprio sistema (API, fila, Worker, concorrência) sob volume, não a
-latência/cota/custo de um provedor terceiro. A mesma lógica se estende aqui ao Object Storage
-(Supabase) — o Worker também chama `storage.obter()`/`storage.salvar()` durante o processamento
-(ver `application/processamento/processar_personalizacao.py`), e um teste de carga que tocasse o
-Supabase real geraria tráfego/custo real e mediria a rede externa junto com o próprio sistema.
+Mesma razão do isolamento do Gemini no teste de carga: medir o comportamento do próprio sistema
+(API, fila, Worker, concorrência) sob volume, não a latência/custo de um provedor terceiro. Vale
+também para o Object Storage — um teste de carga que tocasse o Supabase real geraria
+tráfego/custo real e mediria a rede externa junto com o próprio sistema.
 
-Ambos implementam os Protocols de `application/ports/` tal como definidos — nenhuma interface
-paralela.
+Ambos implementam os Protocols de `application/ports/` tal como definidos.
 """
 
 import asyncio
@@ -28,11 +25,10 @@ _DESCRICAO_PERFIL_FAKE = "Descrição de perfil gerada pelo fake de carga (loadt
 class LLMFakeComLatencia(ILLMPort):
     """Simula o tempo de resposta do Gemini sem chamar a rede real.
 
-    PROPOSTA: `latencia_segundos` não é um valor medido do Gemini real — é um placeholder para
-    permitir avaliar concorrência sob um tempo de processamento não-instantâneo (sem latência
-    nenhuma, o teste de carga mediria apenas overhead de banco/fila, não o formato real de uma
-    jornada onde o Worker fica ocupado por alguns segundos por Processamento). Deve ser tratado
-    como ajustável, nunca como SLA do projeto — ver loadtest/README.md.
+    PROPOSTA: `latencia_segundos` é um placeholder ajustável, não um valor medido do Gemini
+    real — sem latência nenhuma o teste mediria só overhead de banco/fila, não uma jornada onde
+    o Worker fica ocupado por segundos por Processamento. Nunca tratar como SLA do projeto —
+    ver loadtest/README.md.
     """
 
     def __init__(self, latencia_segundos: float) -> None:
