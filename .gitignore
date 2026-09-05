@@ -36,3 +36,9 @@ loadtest/resultados/
 
 # dumps de backup do PostgreSQL — contêm dados reais, nunca versionar
 backups/
+
+# artefatos manuais de teste/inspeção pontual, não gerados pelo projeto
+*_teste.json
+*_e2e*.json
+openapi.json
+inspect_*.txt
