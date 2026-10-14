@@ -2,7 +2,7 @@ import base64
 import html
 import logging
 import re
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from functools import lru_cache
 from pathlib import Path
 from string import Template
@@ -13,6 +13,7 @@ from weasyprint import CSS, HTML, URLFetcher
 
 from infrastructure.pipeline.erros import ErroDePipeline
 from infrastructure.pipeline.extrator import ImagemExtraida
+from infrastructure.pipeline.imagens_geradas import ImagensGeradasDoMaterial, posicionar_imagens
 
 logger = logging.getLogger(__name__)
 
@@ -540,14 +541,52 @@ def montar_documento_html(
     # no PDF isso é inofensivo porque o WeasyPrint não executa JS e o fetcher só aceita "data".
     # Antes de servir este HTML a um navegador é obrigatório sanitizá-lo por lista de permissão.
     # Sem capa devolve só o fragmento do corpo; com capa, um documento completo.
+    return _montar_documento(
+        conteudo_markdown, imagens, incluir_capa=incluir_capa, texto_da_capa=conteudo_markdown
+    )
+
+
+def _montar_documento(
+    conteudo_markdown: str,
+    imagens: Sequence[ImagemExtraida],
+    *,
+    incluir_capa: bool,
+    texto_da_capa: str,
+    pos_processar_corpo: Callable[[str], str] | None = None,
+) -> str:
     conteudo_completo = conteudo_markdown + _construir_secao_de_imagens(imagens)
     corpo_html = markdown.markdown(conteudo_completo, extensions=_EXTENSOES_MARKDOWN)
+    if pos_processar_corpo is not None:
+        corpo_html = pos_processar_corpo(corpo_html)
     if not incluir_capa:
         return corpo_html
     # Título e subtítulo saem do Markdown original, sem as imagens anexadas, e a capa entra só
     # no HTML: o corpo (e o resumo calculado fora daqui) não muda.
-    titulo, subtitulo = _dados_da_capa(conteudo_markdown)
+    titulo, subtitulo = _dados_da_capa(texto_da_capa)
     return _montar_documento_com_capa(_renderizar_capa(titulo, subtitulo), corpo_html, titulo)
+
+
+def montar_documento_html_com_imagens_geradas(
+    conteudo_markdown: str,
+    imagens_geradas: ImagensGeradasDoMaterial | None,
+    imagens: Sequence[ImagemExtraida] = (),
+    *,
+    incluir_capa: bool = True,
+) -> str:
+    # Mesma ressalva de `montar_documento_html`: o HTML NÃO é sanitizado nem serve ao navegador.
+    # Cada âncora válida do Markdown é trocada pela imagem gerada do seu conceito, na posição
+    # original; âncoras e marcadores sem imagem correspondente somem do documento e o texto fica.
+    # Sem nenhuma imagem a posicionar o resultado é o de `montar_documento_html` sobre o texto
+    # limpo. A imagem (bytes validados + texto alternativo escapado) entra só depois da conversão
+    # do Markdown, montada por `imagens_geradas.py`: nada dela passa pelo conversor.
+    posicionamento = posicionar_imagens(conteudo_markdown, imagens_geradas)
+    return _montar_documento(
+        posicionamento.markdown,
+        imagens,
+        incluir_capa=incluir_capa,
+        texto_da_capa=posicionamento.texto_limpo,
+        pos_processar_corpo=posicionamento.substituir if posicionamento.preparadas else None,
+    )
 
 
 def folhas_de_estilo_pdf(*, incluir_capa: bool = True) -> list[str]:
@@ -570,12 +609,34 @@ def gerar_pdf(
         documento_html = montar_documento_html(
             conteudo_markdown, imagens, incluir_capa=incluir_capa
         )
-        folhas = [
-            CSS(string=folha, url_fetcher=_url_fetcher_sem_rede)
-            for folha in folhas_de_estilo_pdf(incluir_capa=incluir_capa)
-        ]
-        return HTML(string=documento_html, url_fetcher=_url_fetcher_sem_rede).write_pdf(
-            stylesheets=folhas
-        )
+        return _escrever_pdf(documento_html, incluir_capa=incluir_capa)
     except Exception as exc:
         raise ErroDePipeline("Falha ao gerar o PDF personalizado.") from exc
+
+
+def gerar_pdf_com_imagens_geradas(
+    conteudo_markdown: str,
+    imagens_geradas: ImagensGeradasDoMaterial | None,
+    imagens: Sequence[ImagemExtraida] = (),
+    *,
+    incluir_capa: bool = True,
+) -> bytes:
+    # Como `gerar_pdf`, com as imagens geradas posicionadas nas âncoras (ver
+    # `montar_documento_html_com_imagens_geradas`). Mesma capa, estilo e `url_fetcher` (só "data").
+    try:
+        documento_html = montar_documento_html_com_imagens_geradas(
+            conteudo_markdown, imagens_geradas, imagens, incluir_capa=incluir_capa
+        )
+        return _escrever_pdf(documento_html, incluir_capa=incluir_capa)
+    except Exception as exc:
+        raise ErroDePipeline("Falha ao gerar o PDF personalizado.") from exc
+
+
+def _escrever_pdf(documento_html: str, *, incluir_capa: bool) -> bytes:
+    folhas = [
+        CSS(string=folha, url_fetcher=_url_fetcher_sem_rede)
+        for folha in folhas_de_estilo_pdf(incluir_capa=incluir_capa)
+    ]
+    return HTML(string=documento_html, url_fetcher=_url_fetcher_sem_rede).write_pdf(
+        stylesheets=folhas
+    )
