@@ -18,6 +18,8 @@ from infrastructure.imagens.gerador_do_material import GeradorDeImagensDoMateria
 from infrastructure.imagens.prazo_total import PrazoTotal
 from infrastructure.llm import gemini_adapter
 from infrastructure.llm.gemini_adapter import _INSTRUCAO_COMPLEMENTAR_IMAGENS, GeminiAdapter
+from infrastructure.pipeline import gerador_pdf as modulo_gerador_pdf
+from infrastructure.pipeline.imagens_geradas import ImagensGeradasDoMaterial
 from tests.unit.application.ports.imagens_fixture import png_valido
 from tests.unit.infrastructure.llm.test_gemini_adapter import _cliente_fake, _InteractionsFake
 from tests.unit.infrastructure.pipeline.pdf_fixture import pdf_valido
@@ -108,17 +110,48 @@ def instancias(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
     return registro
 
 
+@pytest.fixture(autouse=True)
+def sem_rede(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Garante que nenhum teste deste arquivo fala com Gemini ou OpenAI: o Gemini é um cliente
+    # falso, o gerador de imagens é falso, e qualquer tentativa de conexão de rede falha.
+    import socket
+
+    def proibido(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("Tentativa de acesso à rede em teste unitário.")
+
+    monkeypatch.setattr(socket.socket, "connect", proibido)
+    monkeypatch.setattr(socket, "create_connection", proibido)
+
+
 @pytest.fixture
-def pontos_de_integracao(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
-    # Observa o que chega ao ponto de integração pendente (texto, conceitos e resultados).
+def entrega_ao_pdf(monkeypatch: pytest.MonkeyPatch) -> list[SimpleNamespace]:
+    # Observa o que chega a `gerar_pdf_com_imagens_geradas` e chama a função real, para que o
+    # PDF e o HTML sejam os verdadeiros. `html` é montado com a mesma função, sem capa.
+    entregas: list[SimpleNamespace] = []
+    real = modulo_gerador_pdf.gerar_pdf_com_imagens_geradas
+
+    def espiao(
+        markdown: str, imagens_geradas: ImagensGeradasDoMaterial | None, imagens: Any = ()
+    ) -> bytes:
+        html = modulo_gerador_pdf.montar_documento_html_com_imagens_geradas(
+            markdown, imagens_geradas, imagens, incluir_capa=False
+        )
+        entregas.append(SimpleNamespace(markdown=markdown, imagens=imagens_geradas, html=html))
+        return real(markdown, imagens_geradas, imagens)
+
+    monkeypatch.setattr(gemini_adapter, "gerar_pdf_com_imagens_geradas", espiao)
+    return entregas
+
+
+@pytest.fixture
+def nenhuma_chamada_ao_pdf_com_imagens(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
     chamadas: list[Any] = []
-    original = GeminiAdapter._incorporar_imagens
 
-    def espiao(self: GeminiAdapter, conteudo: str, conceitos: Any, resultados: Any) -> str:
-        chamadas.append((conteudo, conceitos, resultados))
-        return original(self, conteudo, conceitos, resultados)
+    def falso(*args: Any, **kwargs: Any) -> bytes:
+        chamadas.append((args, kwargs))
+        return b"%PDF-falso"
 
-    monkeypatch.setattr(GeminiAdapter, "_incorporar_imagens", espiao)
+    monkeypatch.setattr(gemini_adapter, "gerar_pdf_com_imagens_geradas", falso)
     return chamadas
 
 
@@ -171,7 +204,7 @@ async def test_desligado_com_marcador_literal_o_fluxo_nao_toca_no_texto(
 
 
 async def test_ligado_conceitos_validos_chegam_ao_orquestrador_e_ao_gerador(
-    instancias: SimpleNamespace, pontos_de_integracao: list[Any]
+    instancias: SimpleNamespace, entrega_ao_pdf: list[SimpleNamespace]
 ) -> None:
     gerador = _GeradorFalso()
     adaptador, _ = _adaptador(
@@ -185,9 +218,10 @@ async def test_ligado_conceitos_validos_chegam_ao_orquestrador_e_ao_gerador(
         ("g1", _DESC1, "g1"),
         ("g2", _DESC2, "g2"),
     ]
-    _, conceitos, resultados = pontos_de_integracao[0]
-    assert [c.identificador for c in conceitos] == ["g1", "g2"]
-    assert len(resultados) == 2 and all(isinstance(r, ImagemGerada) for r in resultados)
+    entregue = entrega_ao_pdf[0].imagens
+    assert [c.identificador for c in entregue.conceitos] == ["g1", "g2"]
+    assert len(entregue.resultados) == 2
+    assert all(isinstance(r, ImagemGerada) for r in entregue.resultados)
 
 
 async def test_ligado_o_orquestrador_recebe_gerador_e_limites_configurados(
@@ -352,7 +386,7 @@ async def test_orcamento_esgotado_preserva_o_texto_e_nao_chama_o_gerador(
 
 
 async def test_falha_de_imagem_nao_elimina_o_texto_adaptado(
-    markdown_enviado_ao_pdf: list[str], pontos_de_integracao: list[Any]
+    markdown_enviado_ao_pdf: list[str], nenhuma_chamada_ao_pdf_com_imagens: list[Any]
 ) -> None:
     falha = FalhaGeracaoImagem("g1", MotivoFalhaImagem.INDISPONIVEL)
     adaptador, _ = _adaptador(_RESPOSTA_1, _GeradorFalso(falha), imagens_geradas_habilitadas=True)
@@ -363,11 +397,12 @@ async def test_falha_de_imagem_nao_elimina_o_texto_adaptado(
     assert resultado.resumo == "Primeiro parágrafo."
     paragrafos = [p for p in markdown_enviado_ao_pdf[0].split("\n") if p.strip()]
     assert paragrafos == ["# Título adaptado", "Primeiro parágrafo.", "Segundo parágrafo."]
-    assert pontos_de_integracao[0][2] == (falha,)
+    # Sem nenhuma imagem a posicionar o PDF segue o caminho de sempre, só com o texto.
+    assert nenhuma_chamada_ao_pdf_com_imagens == []
 
 
-async def test_imagens_geradas_sao_preservadas_ao_lado_de_uma_falha(
-    pontos_de_integracao: list[Any], caplog: pytest.LogCaptureFixture
+async def test_imagem_gerada_e_falha_ficam_associadas_aos_conceitos_certos(
+    entrega_ao_pdf: list[SimpleNamespace],
 ) -> None:
     imagem = _imagem()
     falha = FalhaGeracaoImagem("g2", MotivoFalhaImagem.TIMEOUT)
@@ -377,13 +412,62 @@ async def test_imagens_geradas_sao_preservadas_ao_lado_de_uma_falha(
         imagens_geradas_habilitadas=True,
         imagens_max_por_material=2,
     )
-    with caplog.at_level(logging.INFO):
+    resultado = await _rodar(adaptador)
+
+    assert resultado is not None
+    entregue = entrega_ao_pdf[0].imagens
+    assert [c.identificador for c in entregue.conceitos] == ["g1", "g2"]
+    assert entregue.resultados == (imagem, falha)
+    assert set(entregue.imagens_por_ancora()) == {"g1"}
+    # Só a imagem do g1 entra no documento; a falha do g2 deixa o texto sem lacuna visível.
+    assert entrega_ao_pdf[0].html.count("<img ") == 1
+    assert "Meio." in entrega_ao_pdf[0].html and "Fim." in entrega_ao_pdf[0].html
+
+
+async def test_resultados_incompletos_preservam_o_texto(
+    entrega_ao_pdf: list[SimpleNamespace], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Um resultado a menos que conceitos: o conceito sem resultado não ganha imagem.
+    imagem = _imagem()
+
+    async def incompleto(self: Any, conceitos: Any) -> tuple[Any, ...]:
+        return (imagem,)
+
+    monkeypatch.setattr(GeminiAdapter, "_gerar_imagens", incompleto)
+    adaptador, _ = _adaptador(
+        _RESPOSTA_2,
+        _GeradorFalso(),
+        imagens_geradas_habilitadas=True,
+        imagens_max_por_material=2,
+    )
+    resultado = await _rodar(adaptador)
+
+    assert resultado is not None
+    html = entrega_ao_pdf[0].html
+    assert html.count("<img ") == 1
+    for trecho in ("Primeiro parágrafo.", "Meio.", "Fim."):
+        assert trecho in html
+    assert "mpi-ancora" not in html and "IMAGEM" not in html
+
+
+async def test_resultados_fora_do_contrato_nao_derrubam_o_texto(
+    monkeypatch: pytest.MonkeyPatch,
+    markdown_enviado_ao_pdf: list[str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # Falha de alinhamento (mais resultados que conceitos): a etapa de imagens é abandonada.
+    async def excedente(self: Any, conceitos: Any) -> tuple[Any, ...]:
+        return (_imagem(), _imagem())
+
+    monkeypatch.setattr(GeminiAdapter, "_gerar_imagens", excedente)
+    adaptador, _ = _adaptador(_RESPOSTA_1, _GeradorFalso(), imagens_geradas_habilitadas=True)
+    with caplog.at_level(logging.WARNING):
         resultado = await _rodar(adaptador)
 
     assert resultado is not None
-    assert pontos_de_integracao[0][2] == (imagem, falha)
-    # Não descartadas em silêncio: a pendência de incorporação é registrada (só contagem).
-    assert "1 imagem(ns) gerada(s) sem incorporação" in caplog.text
+    assert "Falha na etapa de imagens (EntradaInvalidaError)" in caplog.text
+    assert "mpi-ancora" not in markdown_enviado_ao_pdf[0]
+    assert "Segundo parágrafo." in markdown_enviado_ao_pdf[0]
 
 
 async def test_logs_nao_trazem_descricao_nem_texto_alternativo(
@@ -411,20 +495,36 @@ async def test_cancelamento_externo_continua_propagando() -> None:
         await tarefa
 
 
-async def test_erro_de_programacao_na_geracao_nao_e_escondido(
-    caplog: pytest.LogCaptureFixture,
+async def test_excecao_inesperada_na_geracao_nao_faz_perder_o_texto(
+    markdown_enviado_ao_pdf: list[str], caplog: pytest.LogCaptureFixture
 ) -> None:
-    # Não vira "imagem que falhou": segue o tratamento já existente de falha inesperada do
-    # método (registro com o nome da classe e retorno None), sem o texto da exceção.
+    # Só o nome da classe é registrado (nunca a mensagem, que poderia trazer a descrição).
     gerador = _GeradorFalso(RuntimeError(f"defeito com {_DESC1}"))
     adaptador, _ = _adaptador(_RESPOSTA_1, gerador, imagens_geradas_habilitadas=True)
 
     with caplog.at_level(logging.WARNING):
         resultado = await _rodar(adaptador)
 
-    assert resultado is None
+    assert resultado is not None
+    assert resultado.resumo == "Primeiro parágrafo."
+    assert "Segundo parágrafo." in markdown_enviado_ao_pdf[0]
+    assert "mpi-ancora" not in markdown_enviado_ao_pdf[0]
     assert "RuntimeError" in caplog.text
     assert _DESC1 not in caplog.text
+
+
+async def test_erro_do_pdf_com_imagens_nao_e_tratado_como_falha_de_imagem(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from infrastructure.pipeline.erros import ErroDePipeline
+
+    def quebra(*args: Any, **kwargs: Any) -> bytes:
+        raise ErroDePipeline("Falha ao gerar o PDF personalizado.")
+
+    monkeypatch.setattr(gemini_adapter, "gerar_pdf_com_imagens_geradas", quebra)
+    adaptador, _ = _adaptador(_RESPOSTA_1, _GeradorFalso(), imagens_geradas_habilitadas=True)
+
+    assert await _rodar(adaptador) is None  # mesmo tratamento de qualquer falha do PDF
 
 
 # --- resposta vazia ou inválida ----------------------------------------------------------------
@@ -464,7 +564,7 @@ async def test_resposta_so_com_marcadores_e_descartada_sem_chamar_o_gerador() ->
 
 
 async def test_nenhum_marcador_ou_ancora_chega_ao_pdf_nem_ao_resumo(
-    markdown_enviado_ao_pdf: list[str],
+    entrega_ao_pdf: list[SimpleNamespace],
 ) -> None:
     resposta = f"{_M1}\n\n# Título\n\n<!--mpi-ancora:fake-->\n\nCorpo adaptado.\n\n{_M2}\n"
     adaptador, _ = _adaptador(
@@ -474,11 +574,67 @@ async def test_nenhum_marcador_ou_ancora_chega_ao_pdf_nem_ao_resumo(
     resultado = await _rodar(adaptador)
 
     assert resultado is not None
-    enviado = markdown_enviado_ao_pdf[0]
-    assert "IMAGEM" not in enviado and "mpi-ancora" not in enviado
-    assert _DESC1 not in enviado and _DESC2 not in enviado
+    entregue = entrega_ao_pdf[0]
+    # Ao PDF só chegam as âncoras dos conceitos aceitos; a forjada e os marcadores não.
+    assert "IMAGEM" not in entregue.markdown and "mpi-ancora:fake" not in entregue.markdown
+    assert _DESC1 not in entregue.markdown and _DESC2 not in entregue.markdown
+    assert "IMAGEM" not in entregue.html and "mpi-ancora" not in entregue.html
+    assert entregue.html.count("<img ") == 2
     assert resultado.resumo == "Corpo adaptado."
     assert "IMAGEM" not in resultado.resumo and "mpi-ancora" not in resultado.resumo
+
+
+async def test_imagem_e_inserida_na_ancora_correta(entrega_ao_pdf: list[SimpleNamespace]) -> None:
+    import base64
+
+    primeira = ImagemGerada(png_valido(2, 2), "alt-primeira")
+    segunda = ImagemGerada(png_valido(3, 3), "alt-segunda")
+    adaptador, _ = _adaptador(
+        _RESPOSTA_2,
+        _GeradorFalso(primeira, segunda),
+        imagens_geradas_habilitadas=True,
+        imagens_max_por_material=2,
+    )
+
+    resultado = await _rodar(adaptador)
+
+    assert resultado is not None
+    html = entrega_ao_pdf[0].html
+    uri1 = base64.b64encode(primeira.conteudo).decode("ascii")
+    uri2 = base64.b64encode(segunda.conteudo).decode("ascii")
+    ordem = [
+        html.index("Primeiro parágrafo."),
+        html.index(uri1),
+        html.index("Meio."),
+        html.index(uri2),
+        html.index("Fim."),
+    ]
+    assert ordem == sorted(ordem)
+    assert 'alt="alt-primeira"' in html and 'alt="alt-segunda"' in html
+    assert "mpi-ancora" not in html
+
+
+async def test_o_pdf_real_contem_a_imagem_gerada() -> None:
+    import pymupdf
+
+    def imagens_do_pdf(pdf: bytes) -> int:
+        documento = pymupdf.open(stream=pdf, filetype="pdf")
+        try:
+            return sum(len(documento[i].get_images()) for i in range(documento.page_count))
+        finally:
+            documento.close()
+
+    com, _ = _adaptador(_RESPOSTA_1, _GeradorFalso(), imagens_geradas_habilitadas=True)
+    sem, _ = _adaptador(
+        _RESPOSTA_1,
+        _GeradorFalso(FalhaGeracaoImagem("g1", MotivoFalhaImagem.TIMEOUT)),
+        imagens_geradas_habilitadas=True,
+    )  # noqa: E501
+
+    pdf_com = (await _rodar(com)).conteudo_pdf
+    pdf_sem = (await _rodar(sem)).conteudo_pdf
+
+    assert imagens_do_pdf(pdf_com) > imagens_do_pdf(pdf_sem)
 
 
 async def test_o_pdf_real_nao_mostra_marcador_nem_ancora() -> None:
@@ -516,3 +672,49 @@ def test_construtor_sem_gerador_mantem_o_comportamento_anterior() -> None:
     adaptador = GeminiAdapter(_cliente_fake(_InteractionsFake(resposta=None)), "m", 5.0)
     assert adaptador._gerador_de_imagens is None
     assert adaptador._imagens_geradas_habilitadas is False
+
+
+# --- isolamento de falhas, cancelamento e provedores reais -------------------------------------
+
+
+async def test_desligado_o_pdf_com_imagens_nunca_e_usado(
+    nenhuma_chamada_ao_pdf_com_imagens: list[Any],
+) -> None:
+    gerador = _GeradorFalso()
+    adaptador, _ = _adaptador(_RESPOSTA_1, gerador)
+
+    assert await _rodar(adaptador) is not None
+    assert gerador.conceitos == [] and nenhuma_chamada_ao_pdf_com_imagens == []
+
+
+async def test_sem_conceitos_validos_nao_ha_chamada_nem_pdf_com_imagens(
+    nenhuma_chamada_ao_pdf_com_imagens: list[Any],
+) -> None:
+    gerador = _GeradorFalso()
+    resposta = "# T\n\nCorpo.\n\n[[IMAGEM:x1|curta]]\n"
+    adaptador, _ = _adaptador(resposta, gerador, imagens_geradas_habilitadas=True)
+
+    assert await _rodar(adaptador) is not None
+    assert gerador.conceitos == [] and nenhuma_chamada_ao_pdf_com_imagens == []
+
+
+async def test_cancelamento_durante_as_imagens_nao_chega_ao_pdf(
+    nenhuma_chamada_ao_pdf_com_imagens: list[Any],
+) -> None:
+    gerador = _GeradorFalso("travar")
+    adaptador, _ = _adaptador(_RESPOSTA_1, gerador, imagens_geradas_habilitadas=True)
+
+    tarefa = asyncio.create_task(_rodar(adaptador))
+    await asyncio.wait_for(gerador.iniciou.wait(), timeout=5)
+    tarefa.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await tarefa
+    assert nenhuma_chamada_ao_pdf_com_imagens == []
+
+
+def test_a_rede_esta_bloqueada_nestes_testes() -> None:
+    import socket
+
+    with pytest.raises(AssertionError, match="rede"):
+        socket.create_connection(("127.0.0.1", 9))

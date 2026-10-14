@@ -147,7 +147,9 @@ def test_metodo_extrai_o_conceito_com_os_campos_esperados() -> None:
 
     assert [(c.identificador, c.descricao, c.ancora) for c in conceitos] == [("g1", _DESC, "g1")]
     assert all(isinstance(c, ConceitoVisual) for c in conceitos)
-    assert "g1" not in texto and "IMAGEM" not in texto
+    # O marcador some; a âncora interna do conceito aceito fica até a montagem do PDF.
+    assert "IMAGEM" not in texto and _DESC not in texto
+    assert texto.count("<!--mpi-ancora:g1-->") == 1
 
 
 def test_metodo_com_recurso_desligado_nao_devolve_conceitos() -> None:
@@ -181,7 +183,9 @@ def test_invalidos_duplicados_e_excedentes_nao_viram_conceito() -> None:
     limpo, conceitos = adaptador._tratar_marcadores_visuais(texto)
 
     assert [c.identificador for c in conceitos] == ["a1", "d4"]
-    assert "IMAGEM" not in limpo and "mpi-ancora" not in limpo and "script" not in limpo
+    assert "IMAGEM" not in limpo and "script" not in limpo
+    assert limpo.count("mpi-ancora") == 2  # uma âncora por conceito aceito, nenhuma forjada
+    assert "<!--mpi-ancora:a1-->" in limpo and "<!--mpi-ancora:d4-->" in limpo
     assert "Início." in limpo and "Fim." in limpo
 
 

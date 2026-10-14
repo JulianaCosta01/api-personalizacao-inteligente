@@ -19,7 +19,8 @@ from infrastructure.pipeline.conceitos_visuais import (
 )
 from infrastructure.pipeline.erros import ErroDePipeline
 from infrastructure.pipeline.extrator import ImagemExtraida, extrair_imagens, extrair_markdown
-from infrastructure.pipeline.gerador_pdf import gerar_pdf
+from infrastructure.pipeline.gerador_pdf import gerar_pdf, gerar_pdf_com_imagens_geradas
+from infrastructure.pipeline.imagens_geradas import ImagensGeradasDoMaterial
 from infrastructure.pipeline.normalizador import normalizar_markdown
 from infrastructure.pipeline.resumo import extrair_resumo
 
@@ -196,25 +197,38 @@ class GeminiAdapter(ILLMPort):
             if conteudo_adaptado is None:
                 return None
 
-            # Com o recurso ligado, nenhum marcador nem âncora chega ao PDF nem ao resumo. Os
-            # conceitos ainda não são usados (a geração de imagens não está ligada).
-            conteudo_adaptado, conceitos = self._tratar_marcadores_visuais(conteudo_adaptado)
+            # `com_ancoras` mantém as âncoras internas dos conceitos aceitos só até a montagem do
+            # PDF; `conteudo_adaptado` é sempre o texto limpo (sem marcadores nem âncoras), a
+            # única versão que serve de base ao resumo e ao PDF sem imagens.
+            com_ancoras, conceitos = self._tratar_marcadores_visuais(conteudo_adaptado)
+            # Sem conceitos o texto já está como deve ficar (e, com o recurso desligado, intocado).
+            conteudo_adaptado = (
+                _remover_marcadores_com_seguranca(com_ancoras) if conceitos else com_ancoras
+            )
             if not conteudo_adaptado.strip():
                 logger.warning("A resposta do modelo só continha marcadores visuais; descartada.")
                 return None
+
+            imagens_geradas: ImagensGeradasDoMaterial | None = None
             if conceitos:
                 logger.info("Conceitos visuais identificados: %d.", len(conceitos))
-                # Falhas esperadas de imagem voltam como resultado (FalhaGeracaoImagem) e não
-                # afetam o texto. Cancelamento e erros de programação não são capturados aqui.
-                resultados_de_imagens = await self._gerar_imagens(conceitos)
-                conteudo_adaptado = self._incorporar_imagens(
-                    conteudo_adaptado, conceitos, resultados_de_imagens
-                )
+                imagens_geradas = await self._gerar_imagens_isoladas(conceitos)
 
-            pdf_final = await asyncio.wait_for(
-                asyncio.to_thread(gerar_pdf, conteudo_adaptado, imagens_originais),
-                timeout=self._timeout_segundos,
-            )
+            if imagens_geradas is not None:
+                pdf_final = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        gerar_pdf_com_imagens_geradas,
+                        com_ancoras,
+                        imagens_geradas,
+                        imagens_originais,
+                    ),
+                    timeout=self._timeout_segundos,
+                )
+            else:
+                pdf_final = await asyncio.wait_for(
+                    asyncio.to_thread(gerar_pdf, conteudo_adaptado, imagens_originais),
+                    timeout=self._timeout_segundos,
+                )
         except TimeoutError:
             logger.warning("Timeout ao reescrever o conteúdo do material.")
             return None
@@ -234,7 +248,8 @@ class GeminiAdapter(ILLMPort):
         return self._imagens_geradas_habilitadas and self._imagens_max_por_material >= 1
 
     def _tratar_marcadores_visuais(self, texto: str) -> tuple[str, tuple[ConceitoVisual, ...]]:
-        # Devolve (texto sem marcadores nem âncoras, conceitos aceitos). Com o recurso desligado
+        # Devolve (texto com as âncoras dos conceitos aceitos, conceitos). Sem conceitos o texto
+        # não tem marcadores nem âncoras. Com o recurso desligado
         # nada é tocado: a instrução enviada é a original, o modelo não é orientado a emitir
         # marcadores e o fluxo fica idêntico ao anterior. Uma falha aqui nunca derruba o texto
         # adaptado: cai para a remoção simples e, em último caso, para o texto como veio.
@@ -244,17 +259,38 @@ class GeminiAdapter(ILLMPort):
             return _remover_marcadores_com_seguranca(texto), ()
         try:
             extracao = extrair_conceitos_visuais(texto, self._imagens_max_por_material)
-            # As âncoras criadas agora ainda não têm imagem para ocupá-las: saem do texto.
-            return remover_marcadores_visuais(extracao.markdown), extracao.conceitos
+            # As âncoras dos conceitos aceitos ficam no texto para a montagem do PDF.
+            return extracao.markdown, extracao.conceitos
         except Exception as exc:
             logger.warning("Falha ao identificar conceitos visuais (%s).", type(exc).__name__)
             return _remover_marcadores_com_seguranca(texto), ()
+
+    async def _gerar_imagens_isoladas(
+        self, conceitos: tuple[ConceitoVisual, ...]
+    ) -> ImagensGeradasDoMaterial | None:
+        # Devolve o que o PDF precisa para posicionar as imagens, ou None para seguir só com o
+        # texto (nenhuma imagem gerada, ou qualquer falha desta fase). Uma falha de imagem, esperada
+        # ou não, nunca descarta o texto já adaptado. `except Exception` não alcança
+        # CancelledError (BaseException), que segue propagando. Só o tipo da exceção é registrado:
+        # nada de descrição, prompt, chave ou conteúdo.
+        try:
+            resultados = await self._gerar_imagens(conceitos)
+            if not any(isinstance(r, ImagemGerada) for r in resultados):
+                return None
+            return ImagensGeradasDoMaterial(conceitos, resultados)
+        except Exception as exc:
+            logger.warning(
+                "Falha na etapa de imagens (%s); seguindo só com o texto.", type(exc).__name__
+            )
+            return None
 
     async def _gerar_imagens(
         self, conceitos: tuple[ConceitoVisual, ...]
     ) -> tuple[ResultadoGeracaoImagem, ...]:
         # Início da fase de imagens de UM material: prazo e orquestrador novos a cada chamada,
-        # nunca reutilizados. O tempo gasto com o Gemini não consome este orçamento.
+        # nunca reutilizados. O tempo gasto com o Gemini não consome este orçamento. O orquestrador
+        # devolve um resultado por conceito, na mesma ordem (únicos e limitados pelo máximo):
+        # é esse alinhamento por posição que ImagensGeradasDoMaterial valida.
         if not self._complemento_de_imagens_ativo() or not conceitos:
             return ()
         if self._gerador_de_imagens is None:
@@ -271,27 +307,6 @@ class GeminiAdapter(ILLMPort):
             limite_individual_segundos=self._imagens_limite_individual_segundos,
         )
         return await orquestrador.gerar(conceitos)
-
-    def _incorporar_imagens(
-        self,
-        conteudo: str,
-        conceitos: tuple[ConceitoVisual, ...],
-        resultados: tuple[ResultadoGeracaoImagem, ...],
-    ) -> str:
-        # PONTO DE INTEGRAÇÃO PENDENTE: o gerador de PDF ainda não substitui âncoras por imagens
-        # geradas, e `_tratar_marcadores_visuais` já removeu as âncoras do texto. A etapa seguinte
-        # deve manter as âncoras até aqui e entregar (conteudo, conceitos, resultados) ao gerador
-        # de PDF; `resultados` segue a ordem de `conceitos` (já únicos e limitados pelo máximo).
-        # Enquanto isso o texto sai inalterado, e as imagens geradas são contadas em log (nunca
-        # descartadas em silêncio). Por isso o Worker NÃO deve injetar um gerador antes dessa
-        # etapa: as chamadas custariam dinheiro sem efeito no material.
-        geradas = sum(isinstance(r, ImagemGerada) for r in resultados)
-        if geradas:
-            logger.warning(
-                "%d imagem(ns) gerada(s) sem incorporação: o gerador de PDF ainda não suporta.",
-                geradas,
-            )
-        return conteudo
 
     def _instrucao_de_reescrita(self) -> str:
         if not self._complemento_de_imagens_ativo():
