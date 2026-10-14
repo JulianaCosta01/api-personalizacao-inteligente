@@ -529,6 +529,35 @@ def _montar_documento_com_capa(capa_html: str, corpo_html: str, titulo: str) -> 
     )
 
 
+def montar_documento_html(
+    conteudo_markdown: str,
+    imagens: Sequence[ImagemExtraida] = (),
+    *,
+    incluir_capa: bool = True,
+) -> str:
+    # ATENÇÃO: o HTML devolvido NÃO é sanitizado nem serve ao navegador. O conversor Markdown
+    # deixa passar HTML bruto (script, iframe, style, handlers on*, URLs javascript: e externas);
+    # no PDF isso é inofensivo porque o WeasyPrint não executa JS e o fetcher só aceita "data".
+    # Antes de servir este HTML a um navegador é obrigatório sanitizá-lo por lista de permissão.
+    # Sem capa devolve só o fragmento do corpo; com capa, um documento completo.
+    conteudo_completo = conteudo_markdown + _construir_secao_de_imagens(imagens)
+    corpo_html = markdown.markdown(conteudo_completo, extensions=_EXTENSOES_MARKDOWN)
+    if not incluir_capa:
+        return corpo_html
+    # Título e subtítulo saem do Markdown original, sem as imagens anexadas, e a capa entra só
+    # no HTML: o corpo (e o resumo calculado fora daqui) não muda.
+    titulo, subtitulo = _dados_da_capa(conteudo_markdown)
+    return _montar_documento_com_capa(_renderizar_capa(titulo, subtitulo), corpo_html, titulo)
+
+
+def folhas_de_estilo_pdf(*, incluir_capa: bool = True) -> list[str]:
+    # CSS de IMPRESSÃO (@page, cabeçalho e rodapé em margem, página nomeada): não serve à tela.
+    folhas = [_FOLHA_DE_ESTILO]
+    if incluir_capa:
+        folhas.append(_FOLHA_DE_ESTILO_CAPA)
+    return folhas
+
+
 def gerar_pdf(
     conteudo_markdown: str,
     imagens: Sequence[ImagemExtraida] = (),
@@ -538,19 +567,13 @@ def gerar_pdf(
     # incluir_capa=False reproduz a geração anterior (só o corpo, sem invólucro HTML nem capa).
     # Com capa, ela é a página 1 (sem rodapé) e o corpo segue numerado pela página física.
     try:
-        conteudo_completo = conteudo_markdown + _construir_secao_de_imagens(imagens)
-        corpo_html = markdown.markdown(conteudo_completo, extensions=_EXTENSOES_MARKDOWN)
-        folhas = [CSS(string=_FOLHA_DE_ESTILO, url_fetcher=_url_fetcher_sem_rede)]
-        if incluir_capa:
-            # Título e subtítulo saem do Markdown original, sem as imagens anexadas, e a capa
-            # entra só no HTML: o corpo (e o resumo calculado fora daqui) não muda.
-            titulo, subtitulo = _dados_da_capa(conteudo_markdown)
-            documento_html = _montar_documento_com_capa(
-                _renderizar_capa(titulo, subtitulo), corpo_html, titulo
-            )
-            folhas.append(CSS(string=_FOLHA_DE_ESTILO_CAPA, url_fetcher=_url_fetcher_sem_rede))
-        else:
-            documento_html = corpo_html
+        documento_html = montar_documento_html(
+            conteudo_markdown, imagens, incluir_capa=incluir_capa
+        )
+        folhas = [
+            CSS(string=folha, url_fetcher=_url_fetcher_sem_rede)
+            for folha in folhas_de_estilo_pdf(incluir_capa=incluir_capa)
+        ]
         return HTML(string=documento_html, url_fetcher=_url_fetcher_sem_rede).write_pdf(
             stylesheets=folhas
         )
