@@ -3,9 +3,16 @@ import logging
 
 from google import genai
 
-from application.ports.gerador_imagens import ConceitoVisual
+from application.ports.gerador_imagens import (
+    ConceitoVisual,
+    IGeradorDeImagens,
+    ImagemGerada,
+    ResultadoGeracaoImagem,
+)
 from application.ports.llm import ConteudoPersonalizado, ILLMPort
 from domain.perfil.dimensoes import Compreensao, Entrada, EstiloProcessamento, Percepcao
+from infrastructure.imagens.gerador_do_material import GeradorDeImagensDoMaterial
+from infrastructure.imagens.prazo_total import PrazoTotal
 from infrastructure.pipeline.conceitos_visuais import (
     extrair_conceitos_visuais,
     remover_marcadores_visuais,
@@ -76,12 +83,23 @@ class GeminiAdapter(ILLMPort):
         timeout_total_segundos: float | None = None,
         imagens_geradas_habilitadas: bool = False,
         imagens_max_por_material: int = 1,
+        gerador_de_imagens: IGeradorDeImagens | None = None,
+        imagens_orcamento_total_segundos: float = 150.0,
+        imagens_timeout_total_segundos: float = 120.0,
+        imagens_limite_individual_segundos: float | None = None,
     ) -> None:
         self._cliente = cliente
         # Recebidos por injeção (valores de Settings, quando for ligado ao Worker), com o recurso
         # desligado por padrão: sem eles a instrução enviada é exatamente a original.
         self._imagens_geradas_habilitadas = imagens_geradas_habilitadas
         self._imagens_max_por_material = imagens_max_por_material
+        # Só há chamada ao provedor de imagens se um gerador for injetado E o recurso estiver
+        # ligado. O prazo e o orquestrador NÃO são guardados aqui: são criados novos para cada
+        # material (ver _gerar_imagens), porque o prazo não pode atravessar materiais.
+        self._gerador_de_imagens = gerador_de_imagens
+        self._imagens_orcamento_total_segundos = imagens_orcamento_total_segundos
+        self._imagens_timeout_total_segundos = imagens_timeout_total_segundos
+        self._imagens_limite_individual_segundos = imagens_limite_individual_segundos
         self._modelo = modelo
         # Tempo-limite de CADA tentativa individual (kwarg `timeout=` de
         # interactions.create, abaixo) — não do retry como um todo.
@@ -186,6 +204,12 @@ class GeminiAdapter(ILLMPort):
                 return None
             if conceitos:
                 logger.info("Conceitos visuais identificados: %d.", len(conceitos))
+                # Falhas esperadas de imagem voltam como resultado (FalhaGeracaoImagem) e não
+                # afetam o texto. Cancelamento e erros de programação não são capturados aqui.
+                resultados_de_imagens = await self._gerar_imagens(conceitos)
+                conteudo_adaptado = self._incorporar_imagens(
+                    conteudo_adaptado, conceitos, resultados_de_imagens
+                )
 
             pdf_final = await asyncio.wait_for(
                 asyncio.to_thread(gerar_pdf, conteudo_adaptado, imagens_originais),
@@ -225,6 +249,49 @@ class GeminiAdapter(ILLMPort):
         except Exception as exc:
             logger.warning("Falha ao identificar conceitos visuais (%s).", type(exc).__name__)
             return _remover_marcadores_com_seguranca(texto), ()
+
+    async def _gerar_imagens(
+        self, conceitos: tuple[ConceitoVisual, ...]
+    ) -> tuple[ResultadoGeracaoImagem, ...]:
+        # Início da fase de imagens de UM material: prazo e orquestrador novos a cada chamada,
+        # nunca reutilizados. O tempo gasto com o Gemini não consome este orçamento.
+        if not self._complemento_de_imagens_ativo() or not conceitos:
+            return ()
+        if self._gerador_de_imagens is None:
+            logger.warning(
+                "Geração de imagens habilitada, mas sem gerador configurado; seguindo só com texto."
+            )
+            return ()
+        prazo = PrazoTotal(self._imagens_orcamento_total_segundos)
+        orquestrador = GeradorDeImagensDoMaterial(
+            gerador=self._gerador_de_imagens,
+            prazo=prazo,
+            maximo=self._imagens_max_por_material,
+            timeout_por_imagem_segundos=self._imagens_timeout_total_segundos,
+            limite_individual_segundos=self._imagens_limite_individual_segundos,
+        )
+        return await orquestrador.gerar(conceitos)
+
+    def _incorporar_imagens(
+        self,
+        conteudo: str,
+        conceitos: tuple[ConceitoVisual, ...],
+        resultados: tuple[ResultadoGeracaoImagem, ...],
+    ) -> str:
+        # PONTO DE INTEGRAÇÃO PENDENTE: o gerador de PDF ainda não substitui âncoras por imagens
+        # geradas, e `_tratar_marcadores_visuais` já removeu as âncoras do texto. A etapa seguinte
+        # deve manter as âncoras até aqui e entregar (conteudo, conceitos, resultados) ao gerador
+        # de PDF; `resultados` segue a ordem de `conceitos` (já únicos e limitados pelo máximo).
+        # Enquanto isso o texto sai inalterado, e as imagens geradas são contadas em log (nunca
+        # descartadas em silêncio). Por isso o Worker NÃO deve injetar um gerador antes dessa
+        # etapa: as chamadas custariam dinheiro sem efeito no material.
+        geradas = sum(isinstance(r, ImagemGerada) for r in resultados)
+        if geradas:
+            logger.warning(
+                "%d imagem(ns) gerada(s) sem incorporação: o gerador de PDF ainda não suporta.",
+                geradas,
+            )
+        return conteudo
 
     def _instrucao_de_reescrita(self) -> str:
         if not self._complemento_de_imagens_ativo():

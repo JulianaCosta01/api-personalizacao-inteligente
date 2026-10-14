@@ -5,6 +5,8 @@ from typing import Literal
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from infrastructure.imagens.prazo_total import MARGEM_MINIMA_PARA_INICIAR_SEGUNDOS
+
 _PADRAO_TAMANHO_DE_IMAGEM = re.compile(r"[1-9][0-9]{2,4}x[1-9][0-9]{2,4}")
 
 
@@ -54,6 +56,11 @@ class Settings(BaseSettings):
     # Tempo-limite de uma tentativa de geração e teto de UMA imagem (incluindo a repetição).
     openai_image_timeout_segundos: float = Field(default=60.0, gt=0, le=300)
     imagens_timeout_total_segundos: float = Field(default=120.0, gt=0, le=600)
+    # Orçamento compartilhado por todas as imagens de um material: começa uma vez e não reinicia
+    # a cada imagem. Abaixo da margem mínima para iniciar uma geração nenhuma imagem seria feita.
+    imagens_orcamento_total_segundos: float = Field(
+        default=150.0, ge=MARGEM_MINIMA_PARA_INICIAR_SEGUNDOS, le=600
+    )
     imagens_max_por_material: int = Field(default=1, ge=1, le=5)
     # Intervalo entre tentativas de claim quando a fila está vazia, e idade máxima de
     # um Processamento em_processamento antes de ser considerado preso e reaberto no startup.

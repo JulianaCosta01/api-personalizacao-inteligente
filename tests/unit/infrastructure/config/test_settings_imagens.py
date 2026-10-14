@@ -13,6 +13,7 @@ _NOMES_DO_RECURSO = [
     "OPENAI_IMAGE_SIZE",
     "OPENAI_IMAGE_TIMEOUT_SEGUNDOS",
     "IMAGENS_TIMEOUT_TOTAL_SEGUNDOS",
+    "IMAGENS_ORCAMENTO_TOTAL_SEGUNDOS",
     "IMAGENS_MAX_POR_MATERIAL",
 ]
 
@@ -39,6 +40,34 @@ def test_valores_padrao_sao_conservadores() -> None:
     assert s.openai_image_size == "1024x1024"
     assert s.openai_image_timeout_segundos == 60.0
     assert s.imagens_timeout_total_segundos == 120.0
+
+
+def test_orcamento_total_padrao_e_150_segundos() -> None:
+    assert _settings().imagens_orcamento_total_segundos == 150.0
+
+
+@pytest.mark.parametrize("valor", [10, 10.0, 60, 150, 600])
+def test_orcamento_total_aceita_valores_dentro_do_intervalo(valor: float) -> None:
+    assert _settings(imagens_orcamento_total_segundos=valor).imagens_orcamento_total_segundos == (
+        valor
+    )
+
+
+@pytest.mark.parametrize("valor", [0, -1, 9.99, 600.01, 10_000, float("nan"), float("inf")])
+def test_orcamento_total_fora_do_intervalo_falha_na_inicializacao(valor: float) -> None:
+    with pytest.raises(ValidationError):
+        _settings(imagens_orcamento_total_segundos=valor)
+
+
+def test_orcamento_total_vem_da_variavel_de_ambiente(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("IMAGENS_ORCAMENTO_TOTAL_SEGUNDOS", "90")
+    assert _settings().imagens_orcamento_total_segundos == 90.0
+
+
+def test_orcamento_total_nao_altera_o_timeout_por_imagem() -> None:
+    s = _settings(imagens_orcamento_total_segundos=30)
+    assert s.imagens_timeout_total_segundos == 120.0
+    assert s.openai_image_timeout_segundos == 60.0
 
 
 def test_nenhum_modelo_nem_chave_sao_presumidos() -> None:
