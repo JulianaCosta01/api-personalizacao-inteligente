@@ -1,8 +1,11 @@
+import re
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_PADRAO_TAMANHO_DE_IMAGEM = re.compile(r"[1-9][0-9]{2,4}x[1-9][0-9]{2,4}")
 
 
 class Settings(BaseSettings):
@@ -37,6 +40,21 @@ class Settings(BaseSettings):
     # Orçamento total de uma chamada ao Gemini (todas as tentativas), usado só pelo
     # Worker; o caminho síncrono do Perfil segue limitado a gemini_timeout_segundos.
     gemini_timeout_total_segundos: float = 45.0
+    # Geração de imagens por IA (OpenAI): desligada por padrão. A chave e o modelo são opcionais
+    # enquanto a flag estiver desligada, para não exigir configuração nova de quem não usa o
+    # recurso; ligar a flag sem eles falha na inicialização. Nenhum modelo é fixado aqui: o
+    # nome é escolhido na configuração (e confirmado contra a documentação da API) por quem liga.
+    imagens_geradas_habilitadas: bool = False
+    openai_api_key: SecretStr | None = None
+    openai_image_model: str | None = None
+    # Valores aceitos variam por modelo; aqui só o formato é validado (ver validador abaixo).
+    # Padrões conservadores quanto a custo.
+    openai_image_quality: Literal["auto", "low", "medium", "high"] = "low"
+    openai_image_size: str = "1024x1024"
+    # Tempo-limite de uma tentativa de geração e teto de UMA imagem (incluindo a repetição).
+    openai_image_timeout_segundos: float = Field(default=60.0, gt=0, le=300)
+    imagens_timeout_total_segundos: float = Field(default=120.0, gt=0, le=600)
+    imagens_max_por_material: int = Field(default=1, ge=1, le=5)
     # Intervalo entre tentativas de claim quando a fila está vazia, e idade máxima de
     # um Processamento em_processamento antes de ser considerado preso e reaberto no startup.
     worker_intervalo_polling_segundos: float = 5.0
@@ -48,6 +66,37 @@ class Settings(BaseSettings):
     # CORS (Documento 4 §13.5): origens lidas do ambiente, nunca hardcoded. Vazia por
     # padrão, domínio real do Moodle não é inventado aqui; sem config, fica fail-closed.
     cors_origins_permitidas: list[str] = Field(default_factory=list)
+
+    @field_validator("openai_api_key", "openai_image_model", mode="before")
+    @classmethod
+    def _vazio_equivale_a_ausente(cls, valor: object) -> object:
+        # `OPENAI_API_KEY=` vazio no .env/.env.example vale como "não configurada".
+        if isinstance(valor, str) and not valor.strip():
+            return None
+        return valor
+
+    @field_validator("openai_image_size")
+    @classmethod
+    def _tamanho_de_imagem_com_formato_valido(cls, valor: str) -> str:
+        if valor != "auto" and _PADRAO_TAMANHO_DE_IMAGEM.fullmatch(valor) is None:
+            raise ValueError("Use 'auto' ou LARGURAxALTURA em pixels (ex.: 1024x1024).")
+        return valor
+
+    @model_validator(mode="after")
+    def _imagens_habilitadas_exigem_configuracao_completa(self) -> "Settings":
+        if self.imagens_geradas_habilitadas:
+            if self.openai_api_key is None:
+                raise ValueError("OPENAI_API_KEY é obrigatória com IMAGENS_GERADAS_HABILITADAS.")
+            if self.openai_image_model is None:
+                raise ValueError(
+                    "OPENAI_IMAGE_MODEL é obrigatório com IMAGENS_GERADAS_HABILITADAS."
+                )
+        if self.imagens_timeout_total_segundos < self.openai_image_timeout_segundos:
+            raise ValueError(
+                "IMAGENS_TIMEOUT_TOTAL_SEGUNDOS não pode ser menor que "
+                "OPENAI_IMAGE_TIMEOUT_SEGUNDOS."
+            )
+        return self
 
     @property
     def cors_origins_efetivas(self) -> list[str]:
