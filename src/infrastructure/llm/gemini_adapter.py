@@ -6,7 +6,7 @@ from google import genai
 from application.ports.llm import ConteudoPersonalizado, ILLMPort
 from domain.perfil.dimensoes import Compreensao, Entrada, EstiloProcessamento, Percepcao
 from infrastructure.pipeline.erros import ErroDePipeline
-from infrastructure.pipeline.extrator import extrair_markdown
+from infrastructure.pipeline.extrator import ImagemExtraida, extrair_imagens, extrair_markdown
 from infrastructure.pipeline.gerador_pdf import gerar_pdf
 from infrastructure.pipeline.normalizador import normalizar_markdown
 from infrastructure.pipeline.resumo import extrair_resumo
@@ -100,6 +100,17 @@ class GeminiAdapter(ILLMPort):
             )
             conteudo_normalizado = normalizar_markdown(conteudo_extraido)
 
+            imagens_originais: list[ImagemExtraida] = []
+            try:
+                imagens_originais = await asyncio.wait_for(
+                    asyncio.to_thread(extrair_imagens, conteudo_original),
+                    timeout=self._timeout_segundos,
+                )
+            except (ErroDePipeline, TimeoutError) as exc:
+                # Falha isolada na extração de imagens não deve derrubar a
+                # personalização inteira: o material sai sem as imagens originais.
+                logger.warning("Falha ao extrair imagens do material original: %s", exc)
+
             entrada_usuario = (
                 f"Estilo de processamento: {estilo_processamento.value}. "
                 f"Percepção: {percepcao.value}. "
@@ -122,7 +133,8 @@ class GeminiAdapter(ILLMPort):
                 return None
 
             pdf_final = await asyncio.wait_for(
-                asyncio.to_thread(gerar_pdf, conteudo_adaptado), timeout=self._timeout_segundos
+                asyncio.to_thread(gerar_pdf, conteudo_adaptado, imagens_originais),
+                timeout=self._timeout_segundos,
             )
         except TimeoutError:
             logger.warning("Timeout ao reescrever o conteúdo do material.")
