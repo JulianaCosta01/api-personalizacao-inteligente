@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["health"])
 
 # Timeout curto de propósito: /ready precisa responder rápido mesmo com o banco fora do
-# ar — sem isso, uma checagem travada faria o próprio endpoint de prontidão parecer travado.
+# ar; sem isso, uma checagem travada faria o próprio endpoint de prontidão parecer travado.
 _TIMEOUT_VERIFICACAO_SEGUNDOS = 3.0
 
 
@@ -40,7 +40,7 @@ def health_check(settings: Settings = Depends(get_settings)) -> HealthResponse:
 
 
 async def _consultar(instrucao: Executable) -> None:
-    # Conexão avulsa e curta do pool já existente (get_engine(), cacheado) — não abre
+    # Conexão avulsa e curta do pool já existente (get_engine(), cacheado), não abre
     # engine novo nem participa da transação de nenhuma requisição.
     async with get_engine().connect() as conexao:
         await conexao.execute(instrucao)
@@ -52,7 +52,7 @@ async def _verificar_banco() -> bool:
         return True
     except Exception:
         # Nunca deixamos a exceção original (que pode incluir DATABASE_URL em
-        # alguns drivers) alcançar o cliente — só o log interno.
+        # alguns drivers) alcançar o cliente, só o log interno.
         logger.exception("Falha na verificação de prontidão do PostgreSQL.")
         return False
 
@@ -73,7 +73,7 @@ async def verificar_prontidao() -> ResultadoProntidao:
     usado neste projeto para get_settings/get_db_session), sem precisar
     derrubar um Postgres real para testar o caminho de falha."""
     banco_ok = await _verificar_banco()
-    # Sem sentido checar a fila se o banco já falhou — é a mesma instância de
+    # Sem sentido checar a fila se o banco já falhou: é a mesma instância de
     # Postgres, e evita reportar dois erros quando a causa raiz é uma só.
     fila_ok = await _verificar_fila() if banco_ok else False
     return ResultadoProntidao(banco_ok=banco_ok, fila_ok=fila_ok)

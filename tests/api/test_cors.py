@@ -103,7 +103,7 @@ def test_header_permitido_e_refletido_no_preflight() -> None:
 
 
 def test_requisicao_sem_origin_funciona_normalmente() -> None:
-    # Chamada servidor-a-servidor real do Plugin Moodle (Documento 3, §9.4):
+    # Chamada servidor-a-servidor real do Plugin Moodle:
     # sem header Origin, CORS não se aplica e a requisição segue normalmente.
     client_dev = TestClient(_app_com_settings(_settings("development")))
 

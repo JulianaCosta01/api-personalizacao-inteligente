@@ -13,10 +13,7 @@ PorcentagemLeitura = Annotated[
     Field(
         ge=0,
         le=1,
-        description=(
-            "Fração de leitura do material, entre 0 e 1 (ex.: 0.78 representa 78% lido). "
-            "Documento 3 §4.7."
-        ),
+        description="Fração de leitura do material, entre 0 e 1 (ex.: 0.78 representa 78% lido).",
         examples=[0.78],
     ),
 ]
@@ -26,7 +23,8 @@ class AcessoAtualizacaoRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     aluno_id: UUID
-    tempo_leitura_incremento_segundos: int
+    # Incremento de uma chamada: nunca negativo (reduziria o total) e no máximo 24 h.
+    tempo_leitura_incremento_segundos: int = Field(ge=0, le=86_400)
     porcentagem_leitura: PorcentagemLeitura
     download_realizado: bool
 

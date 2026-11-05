@@ -14,10 +14,11 @@ from presentation.api.main import app
 from presentation.api.rate_limit import (
     LimitadorDeTaxa,
     _limitador_materiais,
+    _limitador_perfis,
     _limitador_processamentos,
 )
 
-# Mesmo valor definido em tests/conftest.py — lido do ambiente em vez de
+# Mesmo valor definido em tests/conftest.py: lido do ambiente em vez de
 # duplicado, para não haver dois "tokens de teste" divergentes no repositório.
 SERVICE_TOKEN = os.environ["SERVICE_TOKEN"]
 
@@ -32,7 +33,11 @@ async def _sem_rate_limit_por_padrao() -> AsyncGenerator[None]:
     app.dependency_overrides[_limitador_materiais] = lambda: LimitadorDeTaxa(
         limite=1_000_000, janela_segundos=60.0
     )
+    app.dependency_overrides[_limitador_perfis] = lambda: LimitadorDeTaxa(
+        limite=1_000_000, janela_segundos=60.0
+    )
     yield
+    app.dependency_overrides.pop(_limitador_perfis, None)
     app.dependency_overrides.pop(_limitador_processamentos, None)
     app.dependency_overrides.pop(_limitador_materiais, None)
 

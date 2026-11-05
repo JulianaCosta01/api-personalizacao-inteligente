@@ -9,7 +9,7 @@ client = TestClient(app)
 
 def _app_com_ambiente(environment: str) -> FastAPI:
     # Strict-Transport-Security é decidido no registro do middleware (Settings resolvida
-    # uma vez em create_app), sem dependency_overrides — daí a app isolada para "production".
+    # uma vez em create_app), sem dependency_overrides: daí a app isolada para "production".
     app_isolada = FastAPI()
     app_isolada.add_middleware(SecurityHeadersMiddleware, environment=environment)
 
@@ -81,7 +81,7 @@ def test_headers_presentes_no_openapi_json() -> None:
 
 def test_docs_redoc_openapi_continuam_acessiveis() -> None:
     # Confirma explicitamente que o middleware não quebrou nenhuma das três
-    # rotas (Documento 4 §17.1 trata o OpenAPI como fonte viva dos contratos).
+    # rotas.
     assert client.get("/docs").status_code == 200
     assert client.get("/redoc").status_code == 200
     assert client.get("/openapi.json").status_code == 200

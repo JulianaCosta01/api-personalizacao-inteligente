@@ -279,7 +279,7 @@ async def test_get_acesso_sem_token_retorna_401(client: AsyncClient) -> None:
 async def test_put_acesso_porcentagem_leitura_aceita_limites_e_fracao_intermediaria(
     client: AsyncClient, db_session: AsyncSession
 ) -> None:
-    # Documento 3 §4.7: porcentagem_leitura é uma fração entre 0 e 1
+    # porcentagem_leitura é uma fração entre 0 e 1
     # (ex.: 0.78 = 78%). 0, 1 e um valor intermediário devem ser aceitos.
     aluno, material_personalizado = await _criar_material_personalizado(db_session)
 

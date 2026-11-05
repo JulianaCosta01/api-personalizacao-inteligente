@@ -44,6 +44,23 @@ async def test_post_repetido_com_mesma_matricula_retorna_200_e_mesmo_id(
     assert segundo.json()["id"] == primeiro.json()["id"]
 
 
+async def test_post_com_matricula_existente_nao_devolve_dados_pessoais(
+    client: AsyncClient,
+) -> None:
+    payload = _payload_cadastro()
+    primeiro = await client.post("/api/v1/alunos", json=payload, headers=_AUTH)
+
+    # Quem repete a matrícula (mesmo com outro nome/e-mail) só recebe id e grupo.
+    outro = {**payload, "nome": "Outra Pessoa", "email": "outra@discente.ufma.br"}
+    segundo = await client.post("/api/v1/alunos", json=outro, headers=_AUTH)
+
+    assert segundo.status_code == 200
+    assert set(segundo.json()) == {"id", "grupo_experimental"}
+    assert segundo.json()["grupo_experimental"] == primeiro.json()["grupo_experimental"]
+    assert "nome" not in segundo.text and "email" not in segundo.text
+    assert set(primeiro.json()) >= {"id", "nome", "email", "matricula", "grupo_experimental"}
+
+
 async def test_post_com_campo_desconhecido_retorna_400(client: AsyncClient) -> None:
     payload = _payload_cadastro()
     payload["campo_nao_permitido"] = "valor-qualquer"

@@ -222,7 +222,7 @@ async def test_post_materiais_excede_limite_retorna_429_com_envelope_padrao(
 
 
 async def test_rate_limit_nao_se_aplica_a_endpoints_de_leitura(client: AsyncClient) -> None:
-    # Confirma que o Depends foi colocado só na rota POST /materiais — GET
+    # Confirma que o Depends foi colocado só na rota POST /materiais: GET
     # continua liberado mesmo com o limitador de materiais zerado.
     _sobrescrever_limitador_materiais(limite=0, relogio=_RelogioFalso())
 

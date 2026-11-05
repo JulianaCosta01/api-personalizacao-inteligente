@@ -11,8 +11,8 @@ from core.logging import request_id_var
 
 class RequestIDMiddleware(BaseHTTPMiddleware):
     """Gera (ou repassa) um id de correlação por requisição, usado nos logs
-    estruturados e devolvido ao cliente — base para reconstruir a jornada de
-    uma solicitação quando a Fila/Worker entrarem em cena (Documento 4, §14).
+    estruturados e devolvido ao cliente: base para reconstruir a jornada de
+    uma solicitação quando a Fila/Worker entrarem em cena.
     """
 
     async def dispatch(
@@ -29,11 +29,10 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    """Headers de segurança exigidos pelo Documento 4, §13.7 — aplicados a toda
-    resposta, inclusive Swagger/ReDoc/OpenAPI.
+    """Headers de segurança aplicados a toda resposta, inclusive Swagger/ReDoc/OpenAPI.
 
     Strict-Transport-Security só é enviado em produção: só faz sentido sobre HTTPS,
-    e o ambiente vem de Settings (Documento 4 §12), nunca de lógica espalhada.
+    e o ambiente vem de Settings, nunca de lógica espalhada.
     """
 
     def __init__(self, app: ASGIApp, environment: str) -> None:

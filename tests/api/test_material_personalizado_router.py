@@ -46,7 +46,7 @@ async def _criar_processamento(
     db_session: AsyncSession, status: StatusProcessamento
 ) -> Processamento:
     # Semeado direto via repositório: um Processamento concluído só existe, em
-    # uso normal, depois do pipeline real do Worker — inalcançável pela API sozinha aqui.
+    # uso normal, depois do pipeline real do Worker: inalcançável pela API sozinha aqui.
     aluno = Aluno(
         id=uuid4(),
         nome="Kristiano Fernandes Plácido",
@@ -111,7 +111,7 @@ async def _criar_material_personalizado(
     )
     await MaterialPersonalizadoRepositorySQLAlchemy(db_session).adicionar(material_personalizado)
     if storage_fake is not None:
-        # O PDF em si não é gravado aqui (só a linha do banco) — o fake precisa "conhecer"
+        # O PDF em si não é gravado aqui (só a linha do banco): o fake precisa "conhecer"
         # a chave para assinar a URL, como o adaptador real exigiria com o objeto no bucket.
         storage_fake.salvos[material_personalizado.caminho_pdf] = b"conteudo fake"
     return material_personalizado
@@ -133,7 +133,7 @@ async def test_get_material_do_processamento_concluido_retorna_200_com_url_assin
     corpo = response.json()
     assert corpo["id"] == str(material_personalizado.id)
     assert corpo["processamento_id"] == str(processamento.id)
-    # Nunca a chave bruta do Storage — sempre uma URL assinada (Documento 3, §7).
+    # Nunca a chave bruta do Storage: sempre uma URL assinada.
     assert corpo["caminho_pdf"] != material_personalizado.caminho_pdf
     assert corpo["caminho_pdf"].startswith("http")
 
