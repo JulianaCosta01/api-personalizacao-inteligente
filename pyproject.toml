@@ -66,7 +66,7 @@ known-first-party = [
 ]
 
 # Depends(...)/Query(...)/File(...)/Form(...) como valor default são o padrão de DI
-# do próprio FastAPI — sem isso o B008 trata cada um como uma chamada mutável comum.
+# do próprio FastAPI; sem isso o B008 trata cada um como uma chamada mutável comum.
 [tool.ruff.lint.flake8-bugbear]
 extend-immutable-calls = [
     "fastapi.Depends",
@@ -109,6 +109,6 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
 
-# aplicação, não biblioteca — uv só gerencia dependências, sem etapa de build/publish
+# aplicação, não biblioteca: uv só gerencia dependências, sem etapa de build/publish
 [tool.uv]
 package = false

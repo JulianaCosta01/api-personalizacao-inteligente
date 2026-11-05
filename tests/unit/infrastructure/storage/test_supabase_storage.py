@@ -222,7 +222,7 @@ async def test_criar_url_leitura_envia_metodo_caminho_e_expiracao_corretos() -> 
 
 async def test_criar_url_leitura_monta_url_absoluta_sem_barra_duplicada() -> None:
     # A base_url do cliente HTTP sempre tem barra final (normalização do próprio httpx); o
-    # path assinado devolvido pelo Supabase começa com "/" — a concatenação não pode duplicar.
+    # path assinado devolvido pelo Supabase começa com "/": a concatenação não pode duplicar.
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"signedURL": "/object/sign/materiais/x.pdf?token=abc123"})
 
@@ -234,7 +234,7 @@ async def test_criar_url_leitura_monta_url_absoluta_sem_barra_duplicada() -> Non
 
 
 async def test_criar_url_leitura_rejeita_chave_com_path_traversal() -> None:
-    # Mesma validação de chave reaproveitada dos demais métodos — não duplica
+    # Mesma validação de chave reaproveitada dos demais métodos, não duplica
     # todas as variantes já cobertas acima, só confirma que é chamada aqui também.
     adaptador = SupabaseStorageAdapter(_cliente(lambda r: httpx.Response(200)), bucket="materiais")
 

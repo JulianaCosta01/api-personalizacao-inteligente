@@ -29,7 +29,7 @@ class RegistrarAcessoResultado:
 
 
 class RegistrarAcessoUseCase:
-    """Documento 3 §4.7 — PUT /materiais-personalizados/{id}/acesso."""
+    """PUT /materiais-personalizados/{id}/acesso."""
 
     def __init__(
         self,
@@ -70,7 +70,7 @@ class RegistrarAcessoUseCase:
             )
 
         if processamento.aluno_id != dados.aluno_id:
-            # Documento 3 §4.7: aluno_id do corpo só é aceito se corresponder ao
+            # aluno_id do corpo só é aceito se corresponder ao
             # dono do Processamento que originou o material (proteção BOLA/IDOR).
             logger.warning(
                 "Tentativa de registrar acesso com aluno_id %s divergente do "

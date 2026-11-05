@@ -34,7 +34,7 @@ Thumbs.db
 loadtest/seed_data.json
 loadtest/resultados/
 
-# dumps de backup do PostgreSQL — contêm dados reais, nunca versionar
+# dumps de backup do PostgreSQL contêm dados reais, nunca versionar
 backups/
 
 # artefatos manuais de teste/inspeção pontual, não gerados pelo projeto

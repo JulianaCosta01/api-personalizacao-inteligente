@@ -6,7 +6,7 @@ FROM python:3.13-slim AS builder
 RUN pip install --no-cache-dir uv
 
 # Mesmo caminho do estágio final: `uv sync` grava o shebang do venv como caminho
-# absoluto do WORKDIR — construir em /build e copiar para /app quebraria os executáveis.
+# absoluto do WORKDIR: construir em /build e copiar para /app quebraria os executáveis.
 WORKDIR /app
 
 # Só os arquivos que definem as dependências: cache de camada do Docker não invalida a
@@ -20,7 +20,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 
 FROM python:3.13-slim AS runtime
 
-# Pango/Cairo — exigidos pelo WeasyPrint.
+# Pango/Cairo, exigidos pelo WeasyPrint.
 RUN apt-get update \
     && apt-get install --no-install-recommends -y \
         libpango-1.0-0 \

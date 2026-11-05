@@ -32,9 +32,9 @@ async def sessao_transacional() -> AsyncIterator[AsyncSession]:
 async def get_db_session() -> AsyncGenerator[AsyncSession]:
     """Fornece uma AsyncSession por escopo de uso, no formato esperado pelo FastAPI Depends.
 
-    Transação única por requisição (Documento 4, §8): commit se o caso de uso
+    Transação única por requisição: commit se o caso de uso
     concluir sem exceção, rollback caso contrário. Os repositórios nunca
-    commitam — essa é a única camada responsável pelo fechamento da transação.
+    commitam: essa é a única camada responsável pelo fechamento da transação.
     """
     async with sessao_transacional() as session:
         yield session

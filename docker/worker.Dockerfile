@@ -14,7 +14,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 
 FROM python:3.13-slim AS runtime
 
-# Pango/Cairo — exigidos pelo WeasyPrint.
+# Pango/Cairo, exigidos pelo WeasyPrint.
 RUN apt-get update \
     && apt-get install --no-install-recommends -y \
         libpango-1.0-0 \

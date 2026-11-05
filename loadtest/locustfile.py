@@ -1,9 +1,6 @@
-"""Locust do teste de carga da Fase 10, Task 2 — dispara POST /api/v1/processamentos.
+"""Teste de carga com Locust: dispara POST /api/v1/processamentos.
 
-Não importa nada de src/: lê os pares aluno_id/material_didatico_id gerados por
-`loadtest/seed.py` e o SERVICE_TOKEN de teste via LOADTEST_SERVICE_TOKEN. Nunca usar o
-SERVICE_TOKEN real de nenhum ambiente — gere um valor descartável só para esta execução
-(ver loadtest/README.md).
+Use sempre um SERVICE_TOKEN descartável, nunca o de um ambiente real.
 
 Uso:
     LOADTEST_SERVICE_TOKEN=<token-de-teste-descartavel> \\
@@ -21,7 +18,7 @@ from locust import HttpUser, between, events, task
 _ARQUIVO_SEED = Path(__file__).resolve().parent / "seed_data.json"
 _PREFIXO_RESULTADOS = os.environ.get("LOADTEST_CSV_PREFIXO", "loadtest/resultados/carga")
 
-# Fase 10 Task 2 exige a distribuição exata de status HTTP. O _stats.csv nativo do Locust
+# Precisamos da distribuição exata de status HTTP. O _stats.csv nativo do Locust
 # agrupa por nome de requisição, não por status code, daí este contador separado.
 _CONTADOR_STATUS: Counter[int] = Counter()
 
@@ -46,7 +43,7 @@ if not _PARES:
 class UsuarioDeProcessamento(HttpUser):
     """Simula uma solicitação de personalização por vez, por usuário virtual.
 
-    PROPOSTA: `wait_time` entre 1 e 2 segundos por usuário não é requisito de nenhum documento —
+    PROPOSTA: `wait_time` entre 1 e 2 segundos por usuário não é requisito de nenhum documento;
     só controla a intensidade agregada junto com --users/--spawn-rate na linha de comando.
     """
 

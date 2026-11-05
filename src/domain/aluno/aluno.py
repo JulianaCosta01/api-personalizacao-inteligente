@@ -16,6 +16,6 @@ class Aluno:
 
     def atualizar_cadastro(self, nome: str, email: str) -> None:
         # Único método de mutação: matricula e grupo_experimental são imutáveis
-        # após o cadastro (Documento 3 §4.1) — a ausência de setter é a proteção.
+        # após o cadastro: a ausência de setter é a proteção.
         self.nome = nome
         self.email = email

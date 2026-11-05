@@ -14,12 +14,12 @@ if TYPE_CHECKING:
 
 
 class MaterialPersonalizado(Base):
-    """PDF adaptado ao perfil do aluno, em relação 1:1 com o Processamento (Documento 2, §4.1)."""
+    """PDF adaptado ao perfil do aluno, em relação 1:1 com o Processamento."""
 
     __tablename__ = "material_personalizado"
     __table_args__ = (
         # UNIQUE em processamento_id expressa a cardinalidade 1:1 e já serve de índice
-        # de busca por FK — um Index separado seria redundante (mesma coluna à esquerda).
+        # de busca por FK: um Index separado seria redundante (mesma coluna à esquerda).
         UniqueConstraint("processamento_id", name="uq_material_personalizado_processamento_id"),
     )
 
@@ -34,7 +34,7 @@ class MaterialPersonalizado(Base):
         nullable=False,
     )
     titulo: Mapped[str] = mapped_column(String(255), nullable=False)
-    # URL assinada com expiração (Documento 3, §7) — carrega querystring de
+    # URL assinada com expiração: carrega querystring de
     # assinatura, por isso o mesmo teto generoso de MaterialDidatico.caminho_storage.
     caminho_pdf: Mapped[str] = mapped_column(String(500), nullable=False)
     # Resumo de um documento inteiro: tamanho não previsível, Text.

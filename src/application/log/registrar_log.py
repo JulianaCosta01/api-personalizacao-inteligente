@@ -41,7 +41,7 @@ class RegistrarLogUseCase:
             )
 
         if dados.processamento_id is not None:
-            # Documento 3 §4.6: processamento_id é opcional, mas quando informado
+            # processamento_id é opcional, mas quando informado
             # deve corresponder a um processamento existente.
             processamento = await self._processamento_repositorio.obter_por_id(
                 dados.processamento_id

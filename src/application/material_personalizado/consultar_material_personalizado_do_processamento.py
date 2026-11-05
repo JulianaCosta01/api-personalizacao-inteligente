@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class ConsultarMaterialPersonalizadoDoProcessamentoUseCase:
-    """Documento 3 §4.5 — GET /processamentos/{id}/material."""
+    """GET /processamentos/{id}/material."""
 
     def __init__(
         self,
@@ -31,8 +31,8 @@ class ConsultarMaterialPersonalizadoDoProcessamentoUseCase:
             )
 
         if processamento.status != StatusProcessamento.CONCLUIDO:
-            # Documento 3 §4.5: o processamento existe, só ainda não gerou o
-            # material — 409, não 404, para diferenciar de "id inexistente".
+            # O processamento existe, só ainda não gerou o
+            # material: 409, não 404, para diferenciar de "id inexistente".
             raise ConflitoDeEstadoError(
                 code="MATERIAL_PERSONALIZADO_INDISPONIVEL",
                 message="O processamento ainda não foi concluído.",
@@ -47,7 +47,7 @@ class ConsultarMaterialPersonalizadoDoProcessamentoUseCase:
         )
         if material is None:
             # Defensivo: o Worker sempre grava o material antes de marcar o
-            # processamento CONCLUIDO (Documento 3 §12) — chegar aqui indica inconsistência.
+            # processamento CONCLUIDO: chegar aqui indica inconsistência.
             logger.warning(
                 "Processamento %s está CONCLUIDO mas não possui material "
                 "personalizado associado — inconsistência de dados.",

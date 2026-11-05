@@ -31,7 +31,7 @@ def test_png_e_jpeg_integros_sao_aceitos() -> None:
     assert estrutura_da_imagem_valida(jpeg_valido())
 
 
-# --- PNG ---------------------------------------------------------------------------------------
+# PNG
 
 
 @pytest.mark.parametrize("corte", [9, 20, 33, 40, 50])
@@ -110,7 +110,7 @@ def test_png_com_fluxo_zlib_corrompido_e_rejeitado() -> None:
     assert not estrutura_da_imagem_valida(_png_com(cabecalho, b"nao-e-zlib"))
 
 
-# --- JPEG --------------------------------------------------------------------------------------
+# JPEG
 
 
 @pytest.mark.parametrize("corte", [3, 4, 10, 20, 30])
@@ -142,7 +142,7 @@ def test_jpeg_com_tamanho_de_segmento_incoerente_e_rejeitado() -> None:
     assert not estrutura_da_imagem_valida(bytes(jpeg))
 
 
-# --- integração com ImagemGerada ---------------------------------------------------------------
+# Integração com ImagemGerada
 
 
 @pytest.mark.parametrize(

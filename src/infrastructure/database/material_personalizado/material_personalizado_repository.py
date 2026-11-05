@@ -28,7 +28,7 @@ class MaterialPersonalizadoRepositorySQLAlchemy(IMaterialPersonalizadoRepository
     async def obter_por_processamento_id(
         self, processamento_id: UUID
     ) -> MaterialPersonalizado | None:
-        # processamento_id não é a PK do modelo (é UNIQUE, Documento 4 §8) —
+        # processamento_id não é a PK do modelo;
         # não dá para usar session.get(), que só busca por chave primária.
         resultado = await self._session.execute(
             select(MaterialPersonalizadoModel).where(

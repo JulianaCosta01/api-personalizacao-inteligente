@@ -26,7 +26,7 @@ class LogRepositorySQLAlchemy(ILogRepository):
         )
         total = (await self._session.execute(consulta_total)).scalar_one()
 
-        # Documento 3 §4.6: ordenado por timestamp crescente, para reconstruir a
+        # Ordenado por timestamp crescente, para reconstruir a
         # linha do tempo de uma solicitação.
         consulta = (
             select(LogInteracaoModel)

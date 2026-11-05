@@ -1,14 +1,9 @@
-"""Cria/atualiza a role `mpi_app` (privilégio mínimo) para uso exclusivo de
-API e Worker em runtime. Idempotente: pode ser executado de novo com segurança.
+"""Cria ou atualiza a role `mpi_app`, de privilégio mínimo, usada pela API e pelo Worker.
+
+Idempotente. Lê as credenciais do .env e nunca imprime nem grava senhas.
 
 Uso:
     python scripts/setup_postgres_app_role.py
-
-Lê do .env: POSTGRES_USER/POSTGRES_PASSWORD (admin), POSTGRES_DB (opcional,
-default "mpi") e POSTGRES_APP_PASSWORD (obrigatório, ver .env.example).
-
-Nenhuma senha é impressa ou gravada em arquivo: viaja só como variável de
-ambiente do processo e, no SQL montado em memória, direto para o stdin do psql.
 """
 
 import os
@@ -54,7 +49,7 @@ def main() -> None:
     app_user = env.get("POSTGRES_APP_USER") or os.environ.get("POSTGRES_APP_USER") or "mpi_app"
     app_password = _exigir(env, "POSTGRES_APP_PASSWORD")
 
-    # Viram identificador SQL entre aspas duplas abaixo — aspas embutidas
+    # Viram identificador SQL entre aspas duplas abaixo: aspas embutidas
     # quebrariam a sintaxe, então são rejeitadas em vez de escapadas.
     identificadores = (
         ("POSTGRES_USER", admin_user),

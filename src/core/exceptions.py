@@ -1,9 +1,8 @@
-"""Tratamento central de exceções (Documento 4, Seção 15).
+"""Tratamento central de exceções.
 
 Traduz a hierarquia de domínio para o código HTTP e o envelope de erro
-padronizados no Documento 3 (§2.4 e §6). Qualquer exceção não mapeada é
-tratada como 500, com detalhes internos apenas no log — nunca no corpo
-da resposta.
+padronizados da API. Qualquer exceção não mapeada vira 500, com detalhes
+internos apenas no log, nunca no corpo da resposta.
 """
 
 import logging
@@ -29,7 +28,7 @@ _STATUS_POR_EXCECAO: dict[type[DomainError], int] = {
     EntradaInvalidaError: status.HTTP_400_BAD_REQUEST,
     RecursoNaoEncontradoError: status.HTTP_404_NOT_FOUND,
     # 422 fica como literal: o nome da constante muda entre versões do starlette,
-    # e o número é exatamente o que o Documento 3 (§6) especifica.
+    # e o número é exatamente o que o contrato da API especifica.
     RegraDeNegocioVioladaError: 422,
     ConflitoDeEstadoError: status.HTTP_409_CONFLICT,
 }

@@ -1,1 +1,1 @@
-"""Entidade Aluno e conceitos de domínio associados (Documento 2, §4.1)."""
+"""Entidade Aluno e conceitos de domínio associados."""

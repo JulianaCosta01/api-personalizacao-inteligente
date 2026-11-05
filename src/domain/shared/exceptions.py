@@ -1,9 +1,6 @@
-"""Hierarquia de exceções de domínio (Documento 4, Seção 15).
+"""Hierarquia de exceções de domínio.
 
-Domain e Application lançam essas exceções quando uma regra de negócio impede a
-continuidade de uma operação; a tradução para código HTTP e para o envelope de
-erro padrão (Documento 3, §2.4) acontece em core.exceptions, nunca aqui — esta
-camada não conhece HTTP.
+A tradução para HTTP fica em core.exceptions: esta camada não conhece HTTP.
 """
 
 from typing import Any

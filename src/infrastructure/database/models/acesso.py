@@ -14,16 +14,16 @@ if TYPE_CHECKING:
 
 
 class AcessoMaterialPersonalizado(Base):
-    """Histórico de leitura de um Material Personalizado (Documento 2, §4.1).
+    """Histórico de leitura de um Material Personalizado.
 
-    A linha só passa a existir no primeiro PUT .../acesso (Documento 3, §4.7) —
+    A linha só passa a existir no primeiro PUT .../acesso;
     não há criação antecipada ao gerar o Material Personalizado.
     """
 
     __tablename__ = "acesso"
     __table_args__ = (
-        # Chave natural (Documento 3 §4.7): material_personalizado_id + aluno_id. A
-        # cardinalidade 1:1 é garantida só indiretamente; Documento 4 §8 exige esta UNIQUE composta.
+        # Chave natural: material_personalizado_id + aluno_id. Sem esta UNIQUE o 1:1
+        # ficaria garantido só indiretamente.
         UniqueConstraint(
             "material_personalizado_id",
             "aluno_id",
@@ -42,7 +42,7 @@ class AcessoMaterialPersonalizado(Base):
         nullable=False,
     )
     # Sem índice adicional: a UniqueConstraint composta já cobre buscas por
-    # material_personalizado_id; nenhum endpoint filtra por aluno_id isolado (Documento 3 §4.7).
+    # material_personalizado_id; nenhum endpoint filtra por aluno_id isolado.
     aluno_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("aluno.id", ondelete="RESTRICT", name="fk_acesso_aluno_id"),
@@ -54,15 +54,15 @@ class AcessoMaterialPersonalizado(Base):
     data_ultimo_acesso: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     tempo_total_leitura: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     quantidade_acessos: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
-    # Numeric em vez de Float: status_leitura depende de limites exatos (0% e 100%,
-    # Documento 3 §4.7); float acumularia erro e nunca fecharia em "CONCLUIDO".
+    # Numeric em vez de Float: status_leitura depende de limites exatos (0% e 100%)
+    # e float acumularia erro, sem nunca fechar em "CONCLUIDO".
     porcentagem_leitura: Mapped[float] = mapped_column(
         Numeric(5, 4), nullable=False, server_default="0"
     )
     download_realizado: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default="false"
     )
-    # Derivado no servidor a partir de porcentagem_leitura (Documento 3, §4.7);
+    # Derivado no servidor a partir de porcentagem_leitura;
     # maior valor "NAO_INICIADO"/"EM_ANDAMENTO" (12 caracteres).
     status_leitura: Mapped[str] = mapped_column(String(20), nullable=False)
 

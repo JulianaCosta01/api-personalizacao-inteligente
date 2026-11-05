@@ -5,7 +5,7 @@ from domain.aluno.aluno import Aluno
 
 
 class AlunoRepositorioFake(IAlunoRepository):
-    """Dublê em memória — sem banco, conforme Documento 4, §16."""
+    """Dublê em memória, sem banco"""
 
     def __init__(self) -> None:
         self._alunos: dict[UUID, Aluno] = {}

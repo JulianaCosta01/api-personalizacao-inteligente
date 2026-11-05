@@ -66,7 +66,7 @@ def _para_modelo(aluno: Aluno) -> AlunoModel:
         nome=aluno.nome,
         email=aluno.email,
         matricula=aluno.matricula,
-        # asyncpg exige str puro para a coluna VARCHAR — StrEnum é um subtipo de
+        # asyncpg exige str puro para a coluna VARCHAR: StrEnum é um subtipo de
         # str, mas o driver checa o tipo exato, não isinstance.
         grupo_experimental=aluno.grupo_experimental.value,
         data_cadastro=aluno.data_cadastro,
