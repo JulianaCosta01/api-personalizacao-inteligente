@@ -92,7 +92,7 @@ async def test_post_arquivo_que_nao_e_pdf_retorna_400(
 async def test_post_com_extensao_pdf_enganosa_retorna_400(
     client: AsyncClient, storage_fake: ObjectStorageFake
 ) -> None:
-    # Nome termina em .pdf, mas o conteúdo não é um PDF de verdade — a
+    # Nome termina em .pdf, mas o conteúdo não é um PDF de verdade: a
     # extensão não pode ser o que decide a validade do arquivo.
     response = await _cadastrar(client, nome="relatorio.pdf", conteudo=b"conteudo forjado")
 

@@ -1,22 +1,7 @@
-"""Worker de carga da Fase 10, Task 2 — mesmo consumidor da fila_processamento do Worker de
-produção (src/worker/worker.py), com Storage e LLM substituídos pelos fakes de loadtest/fakes.py.
-Nunca chama Gemini nem Supabase Storage reais.
+"""Worker de carga: mesmo consumidor da fila do Worker de produção, com Storage e LLM fakes.
 
-Reaproveita, sem alterar nem duplicar:
-- worker.claim.reivindicar_processamento (claim via SKIP LOCKED)
-- worker.worker.processar_reivindicado (já aceita `fabrica_caso_de_uso` como parâmetro
-  injetável — ponto de extensão que já existia antes desta Task, criado na Fase 7
-  justamente para permitir fakes de Storage/LLM nos testes)
-- worker.worker.recuperar_processamentos_presos
-- worker.loop.executar_loop (loop de polling genérico)
-- core.logging.request_id_var (Fase 10, Task 1) — processamento_id continua sendo o
-  identificador de correlação; nenhuma mudança em core/logging.py.
-
-A única coisa reimplementada aqui é o wrapper de correlação (set/reset de request_id_var),
-porque `executar_ciclo` (worker/worker.py) não expõe `fabrica_caso_de_uso` como parâmetro — não
-é um requisito do Worker de produção, só deste script. Adicionar esse parâmetro a
-`executar_ciclo` mudaria a assinatura pública do Worker de produção sem necessidade; manter os
-~6 linhas duplicadas aqui evita essa alteração de código de produção fora do escopo da Task.
+Só o wrapper de correlação é reimplementado, porque `executar_ciclo` não aceita
+`fabrica_caso_de_uso` e mudar sua assinatura só pelo teste de carga não compensa.
 
 Uso:
     PYTHONPATH=src uv run python -m loadtest.worker_carga --latencia-llm-segundos 2.0
@@ -52,10 +37,8 @@ FabricaCasoDeUso = Callable[[AsyncSession], ProcessarPersonalizacaoUseCase]
 
 def _construir_fabrica_de_carga(latencia_llm_segundos: float) -> FabricaCasoDeUso:
     def _fabrica(session: AsyncSession) -> ProcessarPersonalizacaoUseCase:
-        # Uma instância nova de cada fake por chamada: mesma vida útil de um
-        # Processamento, sem estado compartilhado indevido entre execuções
-        # concorrentes (mesma razão do GeminiAdapter real, que também não é
-        # compartilhado entre chamadas — ver worker.py:_construir_caso_de_uso).
+        # Instância nova por chamada, mesma vida útil de um Processamento, sem estado
+        # compartilhado entre execuções concorrentes (mesma razão do GeminiAdapter real).
         return ProcessarPersonalizacaoUseCase(
             ProcessamentoRepositorySQLAlchemy(session),
             MaterialRepositorySQLAlchemy(session),
@@ -69,8 +52,7 @@ def _construir_fabrica_de_carga(latencia_llm_segundos: float) -> FabricaCasoDeUs
 
 
 async def _ciclo_de_carga(fabrica_caso_de_uso: FabricaCasoDeUso) -> None:
-    """Espelha executar_ciclo (worker/worker.py, Fase 10 Task 1) — ver docstring do módulo
-    sobre por que este wrapper precisa existir separadamente."""
+    """Espelha executar_ciclo (worker/worker.py); a docstring do módulo explica por quê."""
     processamento_id = await reivindicar_processamento()
     if processamento_id is None:
         return
@@ -86,7 +68,7 @@ async def _executar(latencia_llm_segundos: float, intervalo_polling_segundos: fl
     settings = get_settings()
     configurar_logging(settings.log_level)
     logger.warning(
-        "Worker de CARGA iniciado (Fase 10 Task 2) — Storage e LLM são fakes "
+        "Worker de CARGA iniciado: Storage e LLM são fakes "
         "(loadtest/fakes.py); nenhuma chamada real ao Gemini ou ao Supabase Storage será feita. "
         "latencia_llm_segundos=%s (PROPOSTA, ver loadtest/README.md).",
         latencia_llm_segundos,
@@ -102,7 +84,7 @@ async def _executar(latencia_llm_segundos: float, intervalo_polling_segundos: fl
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Worker de carga da Fase 10, Task 2 — usa fakes de LLM/Storage, nunca "
+        description="Worker de carga: usa fakes de LLM/Storage, nunca "
         "toca Gemini ou Supabase reais."
     )
     parser.add_argument(

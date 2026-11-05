@@ -1,15 +1,7 @@
-"""Semeia Aluno + Material Didático + Perfil direto via repositórios (Fase 10, Task 2).
+"""Cria Aluno, Material Didático e Perfil direto pelos repositórios, sem passar pela API.
 
-POST /api/v1/processamentos exige um Aluno, um Material Didático e um Perfil já cadastrados
-(ver application/processamento/criar_processamento.py). Este script cria esses três recursos
-SEM passar pela API — motivo: `POST /alunos/{id}/perfil` chama o Gemini de forma síncrona (ver
-presentation/api/routers/perfil.py) e `POST /materiais` chama o Object Storage real; nenhum dos
-dois deve ser tocado só para preparar dados de teste. O padrão de composição direta via
-repositórios já existe em tests/integration/queue/test_fila_postgres.py::_criar_processamento —
-este script reaproveita o mesmo padrão (repositórios SQLAlchemy existentes), só parando antes de
-criar o Processamento em si, que é o próprio POST que o Locust vai disparar.
-
-NUNCA rodar contra um banco de produção — grava dados sintéticos, sem vínculo com alunos reais.
+Assim a preparação dos dados não chama o Gemini nem o Storage real.
+NUNCA rodar contra o banco de produção.
 
 Uso:
     PYTHONPATH=src uv run python -m loadtest.seed --quantidade 20
@@ -86,7 +78,7 @@ async def semear(quantidade: int) -> list[dict[str, str]]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Semeia Alunos/Materiais/Perfis para o teste de carga da Fase 10, Task 2."
+        description="Semeia Alunos/Materiais/Perfis para o teste de carga."
     )
     parser.add_argument(
         "--quantidade",

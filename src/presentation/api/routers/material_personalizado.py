@@ -48,9 +48,8 @@ async def _repositorio_material_personalizado(
 def _storage_material_personalizado(
     settings: Settings = Depends(get_settings),
 ) -> IObjectStoragePort:
-    # Mesmo bucket dos materiais didáticos (Worker grava em
-    # "materiais-personalizados/{id}.pdf" dentro dele — ver
-    # ProcessarPersonalizacaoUseCase); não há um bucket dedicado em Settings.
+    # Mesmo bucket dos materiais didáticos: o Worker grava em "materiais-personalizados/{id}.pdf"
+    # dentro dele (ver ProcessarPersonalizacaoUseCase); não há bucket dedicado em Settings.
     return SupabaseStorageAdapter(get_storage_client(), settings.storage_bucket_materiais)
 
 

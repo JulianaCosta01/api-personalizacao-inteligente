@@ -172,13 +172,8 @@ async def test_put_acesso_com_aluno_diferente_do_dono_retorna_400(
 async def test_put_acesso_de_um_aluno_real_em_material_de_outro_aluno_retorna_400(
     client: AsyncClient, db_session: AsyncSession
 ) -> None:
-    # Cenário de BOLA/IDOR propriamente dito: não um aluno_id qualquer/
-    # inexistente, mas um segundo Aluno de verdade, cadastrado no sistema,
-    # tentando registrar acesso com a própria identidade num Material
-    # Personalizado que pertence a outro Aluno (via processamento.aluno_id).
-    # O SERVICE_TOKEN por si só não distingue quem está fazendo a chamada
-    # (feedback_bola_idor_authorization) — a checagem de posse é o que
-    # impede isso.
+    # Cenário de BOLA/IDOR real: um segundo Aluno tenta acessar Material Personalizado de
+    # outro. SERVICE_TOKEN não distingue quem chama, a checagem de posse é o que impede.
     _, material_personalizado = await _criar_material_personalizado(db_session)
     aluno_intruso = Aluno(
         id=uuid4(),
@@ -284,7 +279,7 @@ async def test_get_acesso_sem_token_retorna_401(client: AsyncClient) -> None:
 async def test_put_acesso_porcentagem_leitura_aceita_limites_e_fracao_intermediaria(
     client: AsyncClient, db_session: AsyncSession
 ) -> None:
-    # Documento 3 §4.7: porcentagem_leitura é uma fração entre 0 e 1
+    # porcentagem_leitura é uma fração entre 0 e 1
     # (ex.: 0.78 = 78%). 0, 1 e um valor intermediário devem ser aceitos.
     aluno, material_personalizado = await _criar_material_personalizado(db_session)
 
@@ -307,9 +302,8 @@ async def test_put_acesso_porcentagem_leitura_aceita_limites_e_fracao_intermedia
 async def test_put_acesso_com_porcentagem_leitura_maior_que_1_retorna_400(
     client: AsyncClient, db_session: AsyncSession
 ) -> None:
-    # Regressão do bug real encontrado na validação E2E: um cliente que envie
-    # um percentual "cru" (25.0) precisa receber um 400 claro do Pydantic,
-    # não um 500 vindo de overflow do Numeric(5, 4) no Postgres.
+    # Regressão de bug real da validação E2E: percentual "cru" (25.0) precisa
+    # dar 400 do Pydantic, não 500 por overflow do Numeric(5, 4) no Postgres.
     aluno, material_personalizado = await _criar_material_personalizado(db_session)
 
     response = await client.put(

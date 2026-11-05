@@ -34,7 +34,7 @@ class AcessoRepositorySQLAlchemy(IAcessoRepository):
     async def obter_por_material_personalizado_id_e_aluno_id(
         self, material_personalizado_id: UUID, aluno_id: UUID
     ) -> AcessoMaterialPersonalizado | None:
-        # Chave natural do registro (Documento 3 §4.7), não a PK — session.get()
+        # Chave natural do registro, não a PK: session.get()
         # não serve aqui.
         resultado = await self._session.execute(
             select(AcessoModel).where(
@@ -66,10 +66,8 @@ def _para_dominio(modelo: AcessoModel) -> AcessoMaterialPersonalizado:
         data_ultimo_acesso=modelo.data_ultimo_acesso,
         tempo_total_leitura=modelo.tempo_total_leitura,
         quantidade_acessos=modelo.quantidade_acessos,
-        # A coluna é Numeric(5, 4) (Documento 4 §8 — precisão exata nos limites
-        # 0%/100%); o driver assíncrono devolve Decimal, não float. A entidade
-        # de Domínio usa float (Documento 3 §4.7 representa a fração em JSON
-        # puro, ex.: 0.78) — a conversão pertence a esta borda, não ao Domínio.
+        # Numeric(5,4) no banco vem como Decimal do driver; Domínio usa
+        # float: a conversão pertence a esta borda.
         porcentagem_leitura=float(modelo.porcentagem_leitura),
         download_realizado=modelo.download_realizado,
         status_leitura=StatusLeitura(modelo.status_leitura),

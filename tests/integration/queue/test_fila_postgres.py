@@ -1,5 +1,5 @@
 import asyncio
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
@@ -17,6 +17,7 @@ from domain.processamento.processamento import Processamento
 from domain.processamento.status_processamento import StatusProcessamento
 from infrastructure.database.aluno.aluno_repository import AlunoRepositorySQLAlchemy
 from infrastructure.database.material.material_repository import MaterialRepositorySQLAlchemy
+from infrastructure.database.models.processamento import Processamento as ProcessamentoModel
 from infrastructure.database.perfil.perfil_repository import PerfilRepositorySQLAlchemy
 from infrastructure.database.processamento.processamento_repository import (
     ProcessamentoRepositorySQLAlchemy,
@@ -182,13 +183,8 @@ async def test_remover_apaga_a_mensagem_da_fila(db_session: AsyncSession) -> Non
 async def test_falha_de_integridade_ao_publicar_nao_impede_uso_posterior_da_sessao(
     db_session: AsyncSession,
 ) -> None:
-    # Prova empírica do SAVEPOINT (Fase 7, Etapa 5 — Problema 1): uma falha
-    # REAL de banco (violação de UniqueConstraint em processamento_id) durante
-    # publicar() não pode envenenar a transação — o chamador
-    # (CriarProcessamentoUseCase) precisa marcar o Processamento como erro na
-    # mesma sessão logo em seguida. Sem o `begin_nested()` em FilaPostgres
-    # .publicar(), a chamada a `atualizar()` abaixo levantaria
-    # PendingRollbackError em vez de persistir o erro.
+    # Prova o SAVEPOINT: uma falha real de banco em publicar() não pode envenenar a
+    # transação; sem begin_nested(), atualizar() abaixo levantaria PendingRollbackError.
     processamento = await _criar_processamento(db_session)
     fila = FilaPostgres(db_session)
     await fila.publicar(processamento.id)
@@ -207,9 +203,8 @@ async def test_falha_de_integridade_ao_publicar_nao_impede_uso_posterior_da_sess
 
 
 async def test_dois_workers_disputando_a_mesma_mensagem_apenas_um_reivindica() -> None:
-    # Concorrência real exige transações/conexões independentes e commitadas —
-    # o `db_session` de teste roda tudo numa única transação não commitada,
-    # o que não exercitaria o SKIP LOCKED entre sessões distintas.
+    # Concorrência real exige transações/conexões independentes e commitadas; o `db_session`
+    # de teste roda numa só transação não commitada, sem exercitar o SKIP LOCKED entre sessões.
     async with sessao_transacional() as session:
         processamento = await _criar_processamento(session)
         await FilaPostgres(session).publicar(processamento.id)
@@ -223,3 +218,117 @@ async def test_dois_workers_disputando_a_mesma_mensagem_apenas_um_reivindica() -
     vencedores = [r for r in resultados if r is not None]
     assert vencedores == [processamento.id]
     assert resultados.count(None) == 1
+
+
+async def test_reivindicar_proximo_incrementa_o_contador_de_tentativas(
+    db_session: AsyncSession,
+) -> None:
+    processamento = await _criar_processamento(db_session)
+    fila = FilaPostgres(db_session)
+    await fila.publicar(processamento.id)
+
+    reivindicado = await fila.reivindicar_proximo()
+
+    assert reivindicado == processamento.id
+    modelo = await db_session.get(ProcessamentoModel, processamento.id)
+    assert modelo is not None
+    await db_session.refresh(modelo)
+    assert modelo.tentativas == 1
+
+
+# Espera entre tentativas (disponivel_em) e job devolvido à fila
+
+
+async def _definir_disponivel_em(
+    session: AsyncSession, processamento_id: UUID, quando: datetime | None
+) -> None:
+    modelo = await session.get(ProcessamentoModel, processamento_id)
+    assert modelo is not None
+    modelo.disponivel_em = quando
+    await session.flush()
+
+
+async def test_reivindicar_proximo_ignora_pendente_com_espera_no_futuro(
+    db_session: AsyncSession,
+) -> None:
+    processamento = await _criar_processamento(db_session)
+    fila = FilaPostgres(db_session)
+    await fila.publicar(processamento.id)
+    await _definir_disponivel_em(
+        db_session, processamento.id, datetime.now(UTC) + timedelta(hours=1)
+    )
+
+    assert await fila.reivindicar_proximo() is None
+
+
+async def test_reivindicar_proximo_aceita_pendente_com_espera_vencida_e_zera_a_espera(
+    db_session: AsyncSession,
+) -> None:
+    processamento = await _criar_processamento(db_session)
+    fila = FilaPostgres(db_session)
+    await fila.publicar(processamento.id)
+    await _definir_disponivel_em(
+        db_session, processamento.id, datetime.now(UTC) - timedelta(seconds=1)
+    )
+
+    assert await fila.reivindicar_proximo() == processamento.id
+
+    modelo = await db_session.get(ProcessamentoModel, processamento.id)
+    assert modelo is not None
+    await db_session.refresh(modelo)
+    assert modelo.disponivel_em is None
+
+
+async def test_job_em_espera_nao_bloqueia_o_proximo_da_fila(db_session: AsyncSession) -> None:
+    em_espera = await _criar_processamento(db_session)
+    seguinte = await _criar_processamento(db_session)
+    fila = FilaPostgres(db_session)
+    await fila.publicar(em_espera.id)
+    await fila.publicar(seguinte.id)
+    await _definir_disponivel_em(db_session, em_espera.id, datetime.now(UTC) + timedelta(hours=1))
+
+    assert await fila.reivindicar_proximo() == seguinte.id
+
+
+@pytest.mark.parametrize("estado", [StatusProcessamento.CONCLUIDO, StatusProcessamento.ERRO])
+async def test_job_encerrado_nunca_volta_a_ser_reivindicado(
+    db_session: AsyncSession, estado: StatusProcessamento
+) -> None:
+    processamento = await _criar_processamento(db_session)
+    fila = FilaPostgres(db_session)
+    await fila.publicar(processamento.id)  # a mensagem permanece (o claim só olha o status)
+    modelo = await db_session.get(ProcessamentoModel, processamento.id)
+    assert modelo is not None
+    modelo.status = estado.value
+    await db_session.flush()
+
+    assert await fila.reivindicar_proximo() is None
+
+
+async def test_ciclo_completo_de_devolucao_preserva_a_mensagem_e_conta_as_tentativas(
+    db_session: AsyncSession,
+) -> None:
+    processamento = await _criar_processamento(db_session)
+    fila = FilaPostgres(db_session)
+    repositorio = ProcessamentoRepositorySQLAlchemy(db_session)
+    await fila.publicar(processamento.id)
+
+    assert await fila.reivindicar_proximo() == processamento.id  # tentativa 1
+    reivindicado = await repositorio.obter_por_id(processamento.id)
+    assert reivindicado is not None and reivindicado.tentativas == 1
+    espera = datetime.now(UTC) + timedelta(hours=1)
+    assert await repositorio.devolver_para_fila_se_dono(reivindicado, espera, 3) is True
+
+    # Em espera: não é candidato, mas a mensagem da fila segue intacta (sem órfão nem perda).
+    assert await fila.reivindicar_proximo() is None
+    assert len(await _mensagens_do_processamento(db_session, processamento.id)) == 1
+
+    await _definir_disponivel_em(
+        db_session, processamento.id, datetime.now(UTC) - timedelta(seconds=1)
+    )
+    assert await fila.reivindicar_proximo() == processamento.id  # tentativa 2
+    modelo = await db_session.get(ProcessamentoModel, processamento.id)
+    assert modelo is not None
+    await db_session.refresh(modelo)
+    assert modelo.tentativas == 2
+    assert modelo.status == StatusProcessamento.EM_PROCESSAMENTO.value

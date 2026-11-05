@@ -120,9 +120,8 @@ async def test_processamento_informado_inexistente_levanta_recurso_nao_encontrad
 async def test_aluno_id_divergente_do_dono_do_processamento_levanta_entrada_invalida(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    # Fase 9 Task 4A: aluno_id e processamento_id não podem apontar para
-    # pessoas diferentes — mesma proteção de RegistrarAcessoUseCase (Documento
-    # 4, §13.2), aplicada aqui contra corrupção da auditoria de negócio.
+    # aluno_id e processamento_id não podem apontar para pessoas diferentes: mesma proteção
+    # de RegistrarAcessoUseCase, aqui contra corrupção da auditoria.
     dono_do_processamento = _aluno()
     outro_aluno = _aluno()
     alunos = AlunoRepositorioFake()

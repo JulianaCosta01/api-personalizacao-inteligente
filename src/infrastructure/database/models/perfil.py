@@ -14,10 +14,10 @@ if TYPE_CHECKING:
 
 
 class PerfilAprendizagem(Base):
-    """Resultado do questionário Felder-Silverman (Documento 2, §4.1).
+    """Resultado do questionário Felder-Silverman.
 
     Relação 1:N com Aluno: cada aplicação do questionário cria um novo registro,
-    preservando o histórico (Documento 3, §4.2) — não há endpoint de atualização.
+    preservando o histórico; não há endpoint de atualização.
     """
 
     __tablename__ = "perfil"
@@ -36,7 +36,7 @@ class PerfilAprendizagem(Base):
     entrada: Mapped[str] = mapped_column(String(20), nullable=False)
     compreensao: Mapped[str] = mapped_column(String(20), nullable=False)
     # Texto gerado pelo Gemini de forma síncrona; nulo se a chamada falhar ou
-    # estourar o tempo-limite (Documento 3, §4.2) — não bloqueia a criação do perfil.
+    # estourar o tempo-limite, não bloqueia a criação do perfil.
     descricao_llm: Mapped[str | None] = mapped_column(Text, nullable=True)
     data_atualizacao: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

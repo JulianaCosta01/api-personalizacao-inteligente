@@ -1,9 +1,6 @@
-"""Modelos SQLAlchemy das sete entidades do DER (Documento 2, §4.1).
+"""Modelos SQLAlchemy das sete entidades do DER.
 
-Import explícito de todos os módulos aqui garante que Base.metadata seja
-populada por completo antes de qualquer uso de Alembic autogenerate ou
-create_all — sem isso, um modelo nunca importado simplesmente não existiria
-para o metadata, mesmo estando presente no pacote.
+Importar todos aqui garante o Base.metadata completo para o Alembic autogenerate.
 """
 
 from infrastructure.database.models.acesso import AcessoMaterialPersonalizado

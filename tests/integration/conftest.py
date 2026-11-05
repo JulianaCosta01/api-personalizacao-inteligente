@@ -21,8 +21,7 @@ async def db_session() -> AsyncGenerator[AsyncSession]:
     try:
         yield session
     finally:
-        # Os repositórios nunca commitam (Documento 4, §8 — a transação é do
-        # caso de uso/request, não do repositório); o rollback aqui é o que
-        # mantém cada teste isolado do próximo, sem precisar truncar tabelas.
+        # Repositórios nunca commitam (a transação é do caso de uso/request);
+        # o rollback aqui isola cada teste do próximo sem precisar truncar tabelas.
         await session.rollback()
         await gerador.aclose()

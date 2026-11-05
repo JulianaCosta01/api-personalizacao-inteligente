@@ -10,8 +10,12 @@ from domain.processamento.status_processamento import StatusProcessamento
 
 
 class ProcessamentoRepositorioFake(IProcessamentoRepository):
-    def __init__(self) -> None:
+    def __init__(self, perder_posse: bool = False) -> None:
         self._processamentos: dict[UUID, Processamento] = {}
+        # Simula a perda de posse: atualizar_se_dono não grava e devolve False.
+        self.perder_posse = perder_posse
+        # Registro das devolvidas à fila: (id, disponivel_em, tentativas_maximas).
+        self.devolvidos: list[tuple[UUID, datetime, int]] = []
 
     def semear(self, processamento: Processamento) -> None:
         self._processamentos[processamento.id] = processamento
@@ -21,6 +25,22 @@ class ProcessamentoRepositorioFake(IProcessamentoRepository):
 
     async def atualizar(self, processamento: Processamento) -> None:
         self._processamentos[processamento.id] = processamento
+
+    async def atualizar_se_dono(self, processamento: Processamento) -> bool:
+        if self.perder_posse:
+            return False
+        self._processamentos[processamento.id] = processamento
+        return True
+
+    async def devolver_para_fila_se_dono(
+        self, processamento: Processamento, disponivel_em: datetime, tentativas_maximas: int
+    ) -> bool:
+        # Mesma condição do SQL real: posse (aqui simulada) e tentativas abaixo do limite.
+        if self.perder_posse or processamento.tentativas >= tentativas_maximas:
+            return False
+        self.devolvidos.append((processamento.id, disponivel_em, tentativas_maximas))
+        self._processamentos[processamento.id] = processamento
+        return True
 
     async def obter_por_id(self, id: UUID) -> Processamento | None:
         return self._processamentos.get(id)
@@ -36,7 +56,9 @@ class ProcessamentoRepositorioFake(IProcessamentoRepository):
         inicio = (pagina - 1) * tamanho_pagina
         return do_aluno[inicio : inicio + tamanho_pagina], len(do_aluno)
 
-    async def liberar_presos(self, idade_maxima: timedelta) -> list[UUID]:
+    async def liberar_presos(
+        self, idade_maxima: timedelta, tentativas_maximas: int | None = None
+    ) -> list[UUID]:
         limite = datetime.now(UTC) - idade_maxima
         liberados = []
         for processamento in self._processamentos.values():
@@ -44,10 +66,27 @@ class ProcessamentoRepositorioFake(IProcessamentoRepository):
                 processamento.status == StatusProcessamento.EM_PROCESSAMENTO
                 and processamento.inicio is not None
                 and processamento.inicio < limite
+                and (tentativas_maximas is None or processamento.tentativas < tentativas_maximas)
             ):
                 processamento.status = StatusProcessamento.PENDENTE
                 liberados.append(processamento.id)
         return liberados
+
+    async def esgotar_tentativas_dos_presos(
+        self, idade_maxima: timedelta, tentativas_maximas: int
+    ) -> list[UUID]:
+        limite = datetime.now(UTC) - idade_maxima
+        esgotados = []
+        for processamento in self._processamentos.values():
+            if (
+                processamento.status == StatusProcessamento.EM_PROCESSAMENTO
+                and processamento.inicio is not None
+                and processamento.inicio < limite
+                and processamento.tentativas >= tentativas_maximas
+            ):
+                processamento.marcar_como_erro("Número máximo de tentativas excedido.")
+                esgotados.append(processamento.id)
+        return esgotados
 
 
 class QueueFake(IQueuePort):

@@ -8,12 +8,8 @@ client = TestClient(app)
 
 
 def _app_com_ambiente(environment: str) -> FastAPI:
-    # Strict-Transport-Security é decidido no momento em que o middleware é
-    # registrado (Settings resolvida uma vez em create_app, Documento 4 §12)
-    # — não passa por Depends()/dependency_overrides como o resto da API.
-    # Uma app isolada com o ambiente desejado, no mesmo padrão de
-    # tests/security/test_validar_token_servico.py, é o jeito de validar
-    # "production" sem depender da variável de ambiente real do processo.
+    # Strict-Transport-Security é decidido no registro do middleware (Settings resolvida
+    # uma vez em create_app), sem dependency_overrides: daí a app isolada para "production".
     app_isolada = FastAPI()
     app_isolada.add_middleware(SecurityHeadersMiddleware, environment=environment)
 
@@ -53,9 +49,8 @@ def test_hsts_ausente_fora_de_production() -> None:
 
 
 def test_hsts_ausente_em_staging() -> None:
-    # "production" é o único gatilho — staging não é produção real (Documento
-    # 4 §12 trata os três como perfis distintos), então não deve herdar HSTS
-    # por engano caso outro código algum dia compare "!= development".
+    # "production" é o único gatilho; staging não deve herdar HSTS por engano
+    # caso algum código algum dia compare "!= development".
     client_staging = TestClient(_app_com_ambiente("staging"))
 
     response = client_staging.get("/rota-de-teste")
@@ -86,7 +81,7 @@ def test_headers_presentes_no_openapi_json() -> None:
 
 def test_docs_redoc_openapi_continuam_acessiveis() -> None:
     # Confirma explicitamente que o middleware não quebrou nenhuma das três
-    # rotas (Documento 4 §17.1 trata o OpenAPI como fonte viva dos contratos).
+    # rotas.
     assert client.get("/docs").status_code == 200
     assert client.get("/redoc").status_code == 200
     assert client.get("/openapi.json").status_code == 200

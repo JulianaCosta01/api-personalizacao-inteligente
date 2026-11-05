@@ -9,6 +9,11 @@ from domain.material.tipo_arquivo import TipoArquivo
 from infrastructure.database.models.material import MaterialDidatico as MaterialModel
 
 
+def escapar_curingas_like(texto: str) -> str:
+    # `%` e `_` do termo buscado valem como texto, não como curinga do LIKE.
+    return texto.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 class MaterialRepositorySQLAlchemy(IMaterialRepository):
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
@@ -35,7 +40,11 @@ class MaterialRepositorySQLAlchemy(IMaterialRepository):
     async def listar(
         self, pagina: int, tamanho_pagina: int, titulo: str | None
     ) -> tuple[list[MaterialDidatico], int]:
-        filtro = MaterialModel.titulo.ilike(f"%{titulo}%") if titulo else None
+        filtro = (
+            MaterialModel.titulo.ilike(f"%{escapar_curingas_like(titulo)}%", escape="\\")
+            if titulo
+            else None
+        )
 
         consulta_total = select(func.count()).select_from(MaterialModel)
         if filtro is not None:

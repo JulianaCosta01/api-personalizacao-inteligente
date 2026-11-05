@@ -41,7 +41,7 @@ class RegistrarLogUseCase:
             )
 
         if dados.processamento_id is not None:
-            # Documento 3 §4.6: processamento_id é opcional, mas quando informado
+            # processamento_id é opcional, mas quando informado
             # deve corresponder a um processamento existente.
             processamento = await self._processamento_repositorio.obter_por_id(
                 dados.processamento_id
@@ -54,12 +54,8 @@ class RegistrarLogUseCase:
                 )
 
             if processamento.aluno_id != dados.aluno_id:
-                # Fase 9 Task 4A: aluno_id e processamento_id eram validados de
-                # forma independente (cada um só contra sua própria existência),
-                # sem nunca serem cruzados entre si — permitindo registrar um log
-                # com aluno_id de uma pessoa e processamento_id de outra,
-                # corrompendo a auditoria de negócio. Mesmo padrão de proteção já
-                # usado em RegistrarAcessoUseCase (Documento 4, §13.2).
+                # aluno_id e processamento_id precisam pertencer à mesma pessoa,
+                # senão corrompe a auditoria (mesma proteção de RegistrarAcessoUseCase).
                 logger.warning(
                     "Tentativa de registrar log com aluno_id %s divergente do "
                     "dono %s do processamento %s (possível BOLA/IDOR).",

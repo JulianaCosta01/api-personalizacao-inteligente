@@ -11,7 +11,7 @@ async def reivindicar_processamento() -> UUID | None:
     """Tenta reivindicar o próximo Processamento pendente da fila.
 
     Transação própria e curta: o claim commita imediatamente, independente do
-    tempo que a execução (chamada LLM, geração de PDF) levar depois — evita
+    tempo que a execução (chamada LLM, geração de PDF) levar depois: evita
     segurar lock/transação aberta pela duração inteira do processamento.
     """
     async with sessao_transacional() as session:

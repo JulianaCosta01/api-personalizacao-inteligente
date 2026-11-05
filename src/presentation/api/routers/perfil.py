@@ -17,6 +17,7 @@ from infrastructure.database.session import get_db_session
 from infrastructure.llm.cliente import get_gemini_client
 from infrastructure.llm.gemini_adapter import GeminiAdapter
 from presentation.api.dependencies import validar_token_servico
+from presentation.api.rate_limit import limitar_perfis
 from presentation.api.schemas.perfil import (
     PaginacaoResponse,
     PerfilCadastroRequest,
@@ -42,11 +43,8 @@ async def _repositorio_perfil(
 
 
 def _llm(settings: Settings = Depends(get_settings)) -> ILLMPort:
-    # timeout_total_segundos não é passado de propósito: este é o caminho
-    # síncrono (Documento 3 §4.2 exige tempo-limite curto aqui), então o
-    # GeminiAdapter usa o próprio timeout por tentativa como orçamento total
-    # — diferente do Worker, que tem espaço para o retry completo (Fase 8
-    # Task 6, ver worker/worker.py).
+    # timeout_total_segundos não é passado de propósito: aqui o caminho é síncrono e precisa
+    # de tempo-limite curto. O Worker, sim, tem espaço para o retry completo.
     return GeminiAdapter(
         get_gemini_client(), settings.gemini_model, settings.gemini_timeout_segundos
     )
@@ -58,6 +56,7 @@ def _llm(settings: Settings = Depends(get_settings)) -> ILLMPort:
 async def cadastrar_perfil(
     aluno_id: UUID,
     dados: PerfilCadastroRequest,
+    _limite: None = Depends(limitar_perfis),
     repositorio_aluno: IAlunoRepository = Depends(_repositorio_aluno),
     repositorio_perfil: IPerfilRepository = Depends(_repositorio_perfil),
     llm: ILLMPort = Depends(_llm),

@@ -1,15 +1,7 @@
-"""Fakes de ILLMPort e IObjectStoragePort usados SOMENTE pelo Worker de carga
-(loadtest/worker_carga.py) — nunca por src/, nunca em produção.
+"""Fakes de LLM e Object Storage usados só pelo Worker de carga, nunca em produção.
 
-Mesma razão já aprovada para isolar o Gemini do teste de carga (Fase 10, Task 2): medir o
-comportamento do próprio sistema (API, fila, Worker, concorrência) sob volume, não a
-latência/cota/custo de um provedor terceiro. A mesma lógica se estende aqui ao Object Storage
-(Supabase) — o Worker também chama `storage.obter()`/`storage.salvar()` durante o processamento
-(ver `application/processamento/processar_personalizacao.py`), e um teste de carga que tocasse o
-Supabase real geraria tráfego/custo real e mediria a rede externa junto com o próprio sistema.
-
-Ambos implementam os Protocols de `application/ports/` tal como definidos — nenhuma interface
-paralela.
+O teste de carga mede o próprio sistema (API, fila, Worker), não a latência ou o custo
+de provedores externos.
 """
 
 import asyncio
@@ -26,13 +18,9 @@ _DESCRICAO_PERFIL_FAKE = "Descrição de perfil gerada pelo fake de carga (loadt
 
 
 class LLMFakeComLatencia(ILLMPort):
-    """Simula o tempo de resposta do Gemini sem chamar a rede real.
+    """Simula o tempo de resposta do Gemini sem chamar a rede.
 
-    PROPOSTA: `latencia_segundos` não é um valor medido do Gemini real — é um placeholder para
-    permitir avaliar concorrência sob um tempo de processamento não-instantâneo (sem latência
-    nenhuma, o teste de carga mediria apenas overhead de banco/fila, não o formato real de uma
-    jornada onde o Worker fica ocupado por alguns segundos por Processamento). Deve ser tratado
-    como ajustável, nunca como SLA do projeto — ver loadtest/README.md.
+    `latencia_segundos` é um valor ajustável, não medido do Gemini real (ver loadtest/README.md).
     """
 
     def __init__(self, latencia_segundos: float) -> None:
@@ -63,7 +51,7 @@ class LLMFakeComLatencia(ILLMPort):
 class ObjectStorageFake(IObjectStoragePort):
     """Guarda os objetos em memória do próprio processo do Worker de carga.
 
-    Uma instância por execução do caso de uso (ver worker_carga.py) — não precisa persistir
+    Uma instância por execução do caso de uso (ver worker_carga.py), não precisa persistir
     entre Processamentos nem entre execuções; o teste de carga não avalia o Storage em si, só
     precisa que o Worker consiga completar o fluxo sem depender de rede externa.
     """

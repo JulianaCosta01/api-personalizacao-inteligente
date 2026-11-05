@@ -6,8 +6,8 @@ from domain.shared.exceptions import RecursoNaoEncontradoError
 
 
 class ConsultarMaterialPersonalizadoUseCase:
-    """Documento 3 §4.5 — GET /materiais-personalizados/{id}: consulta direta pelo
-    id do próprio material personalizado, sem passar pelo processamento de origem."""
+    """GET /materiais-personalizados/{id}: consulta direta pelo id do material
+    personalizado, sem passar pelo processamento de origem."""
 
     def __init__(
         self, material_personalizado_repositorio: IMaterialPersonalizadoRepository

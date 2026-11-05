@@ -6,20 +6,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from domain.acesso.status_leitura import StatusLeitura
 
-# Documento 3 §4.7: porcentagem_leitura é uma fração entre 0 e 1, não um
-# percentual entre 0 e 100 (ex.: 0.78 = 78% lido). A coluna correspondente
-# é Numeric(5, 4), que só comporta esse intervalo — sem o ge/le abaixo, um
-# cliente que envie um percentual "cru" (ex.: 25.0) derruba a requisição
-# com um erro de overflow do banco em vez de um 400 claro.
+# Fração entre 0 e 1, não percentual (0.78 = 78% lido). A coluna é Numeric(5, 4);
+# sem o ge/le, um valor "cru" (ex.: 25.0) vira overflow do banco em vez de um 400 claro.
 PorcentagemLeitura = Annotated[
     float,
     Field(
         ge=0,
         le=1,
-        description=(
-            "Fração de leitura do material, entre 0 e 1 (ex.: 0.78 representa 78% lido). "
-            "Documento 3 §4.7."
-        ),
+        description="Fração de leitura do material, entre 0 e 1 (ex.: 0.78 representa 78% lido).",
         examples=[0.78],
     ),
 ]
@@ -29,7 +23,8 @@ class AcessoAtualizacaoRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     aluno_id: UUID
-    tempo_leitura_incremento_segundos: int
+    # Incremento de uma chamada: nunca negativo (reduziria o total) e no máximo 24 h.
+    tempo_leitura_incremento_segundos: int = Field(ge=0, le=86_400)
     porcentagem_leitura: PorcentagemLeitura
     download_realizado: bool
 

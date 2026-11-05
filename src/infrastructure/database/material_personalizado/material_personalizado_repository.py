@@ -15,10 +15,8 @@ class MaterialPersonalizadoRepositorySQLAlchemy(IMaterialPersonalizadoRepository
         self._session = session
 
     async def adicionar(self, material_personalizado: MaterialPersonalizado) -> None:
-        # SAVEPOINT: uma falha real de banco aqui (ex.: violação da unicidade de
-        # processamento_id) não pode envenenar a transação externa — o chamador
-        # (ProcessarPersonalizacaoUseCase) precisa da sessão ainda utilizável
-        # para marcar o Processamento como erro logo em seguida.
+        # SAVEPOINT: uma falha de unicidade aqui não pode envenenar a transação externa,
+        # o chamador (ProcessarPersonalizacaoUseCase) precisa da sessão utilizável depois.
         async with self._session.begin_nested():
             self._session.add(_para_modelo(material_personalizado))
             await self._session.flush()
@@ -30,7 +28,7 @@ class MaterialPersonalizadoRepositorySQLAlchemy(IMaterialPersonalizadoRepository
     async def obter_por_processamento_id(
         self, processamento_id: UUID
     ) -> MaterialPersonalizado | None:
-        # processamento_id não é a PK do modelo (é UNIQUE, Documento 4 §8) —
+        # processamento_id não é a PK do modelo;
         # não dá para usar session.get(), que só busca por chave primária.
         resultado = await self._session.execute(
             select(MaterialPersonalizadoModel).where(

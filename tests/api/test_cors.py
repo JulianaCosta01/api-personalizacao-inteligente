@@ -13,11 +13,8 @@ _ORIGEM_NAO_PERMITIDA = "https://origem-desconhecida.exemplo.com"
 
 
 def _app_com_settings(settings: Settings) -> FastAPI:
-    # Mesma composição de middlewares de create_app() (presentation/api/main.py),
-    # mas montada isoladamente a partir de uma Settings construída no teste —
-    # não depende de mutar a variável de ambiente real nem o app singleton
-    # (padrão já usado em tests/security/test_validar_token_servico.py e em
-    # tests/api/test_security_headers.py para o cenário de production).
+    # Mesma composição de middlewares de create_app() (main.py), mas isolada a
+    # partir de uma Settings construída no teste, sem mutar env real nem o app singleton.
     app_isolada = FastAPI()
     app_isolada.add_middleware(
         CORSMiddleware,
@@ -106,7 +103,7 @@ def test_header_permitido_e_refletido_no_preflight() -> None:
 
 
 def test_requisicao_sem_origin_funciona_normalmente() -> None:
-    # Chamada servidor-a-servidor real do Plugin Moodle (Documento 3, §9.4):
+    # Chamada servidor-a-servidor real do Plugin Moodle:
     # sem header Origin, CORS não se aplica e a requisição segue normalmente.
     client_dev = TestClient(_app_com_settings(_settings("development")))
 
@@ -174,10 +171,8 @@ def test_headers_de_seguranca_da_task_2_preservados_com_cors_ativo() -> None:
 
 
 def test_headers_de_seguranca_preservados_ate_em_preflight_curto_circuitado() -> None:
-    # CORSMiddleware é o mais interno dos três (ver main.py); mesmo quando ele
-    # responde ao preflight sem chamar a rota, RequestIDMiddleware e
-    # SecurityHeadersMiddleware ainda pós-processam a resposta a caminho do
-    # cliente.
+    # CORSMiddleware é o mais interno dos três (main.py); mesmo respondendo ao preflight sem
+    # chamar a rota, RequestIDMiddleware e SecurityHeadersMiddleware ainda pós-processam a resposta.
     client_dev = TestClient(_app_com_settings(_settings("development")))
 
     response = client_dev.options(

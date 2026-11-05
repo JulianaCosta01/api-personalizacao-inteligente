@@ -26,7 +26,7 @@ class CadastrarAlunoUseCase:
         self._repositorio = repositorio
 
     async def executar(self, dados: CadastrarAlunoInput) -> CadastrarAlunoResultado:
-        # Upsert por matricula (Documento 3, §2.5): aluno existente é retornado
+        # Upsert por matricula: aluno existente é retornado
         # como está, sem sortear grupo_experimental de novo nem tocar seus dados.
         existente = await self._repositorio.obter_por_matricula(dados.matricula)
         if existente is not None:

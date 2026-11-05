@@ -1,13 +1,8 @@
-"""Coleta as métricas específicas do MPI (fila, Worker, duplicação) após uma execução do teste
-de carga da Fase 10, Task 2, e grava um resultado objetivo em JSON.
+"""Coleta as métricas do banco (fila, Worker, duplicação) depois de uma execução do Locust.
 
-As métricas HTTP (throughput, latência média, p50/p95/p99, distribuição de status) já são
-geradas nativamente pelo Locust via `--csv=<prefixo>` — este script não as recalcula, só referencia
-os arquivos gerados. O que falta depois de uma execução do Locust é o que só o próprio banco sabe:
-quantos Processamentos ficaram em cada status, se a fila drenou por completo e se algum
-Processamento gerou mais de um MaterialPersonalizado (duplicação de claim/processamento).
+As métricas HTTP já vêm do `--csv` do Locust; aqui entra só o que o banco sabe.
 
-Uso, depois de uma execução do Locust com --csv:
+Uso:
     PYTHONPATH=src uv run python -m loadtest.relatorio --csv-prefixo loadtest/resultados/carga
 """
 
@@ -64,7 +59,7 @@ async def coletar() -> dict[str, object]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Coleta métricas MPI pós-execução do teste de carga (Fase 10, Task 2)."
+        description="Coleta métricas MPI pós-execução do teste de carga."
     )
     parser.add_argument(
         "--csv-prefixo",

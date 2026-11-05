@@ -166,14 +166,8 @@ async def test_processamento_id_e_unico_por_material_personalizado(
 async def test_falha_de_integridade_nao_impede_uso_posterior_da_sessao(
     db_session: AsyncSession,
 ) -> None:
-    # Prova empírica do SAVEPOINT (Fase 7, Etapa 5 — Problema 1): uma falha
-    # REAL de banco (violação de UniqueConstraint em processamento_id) durante
-    # adicionar() não pode envenenar a transação — o chamador
-    # (ProcessarPersonalizacaoUseCase) precisa marcar o Processamento como
-    # erro na mesma sessão logo em seguida. Sem o `begin_nested()` em
-    # MaterialPersonalizadoRepositorySQLAlchemy.adicionar(), a chamada a
-    # `atualizar()` abaixo levantaria PendingRollbackError em vez de
-    # persistir o erro.
+    # Prova o SAVEPOINT: uma falha real de banco em adicionar() não pode envenenar a
+    # transação; sem begin_nested() no repositório, atualizar() levantaria PendingRollbackError.
     processamento = await _criar_processamento(db_session)
     repositorio = MaterialPersonalizadoRepositorySQLAlchemy(db_session)
     await repositorio.adicionar(_material_personalizado(processamento.id))

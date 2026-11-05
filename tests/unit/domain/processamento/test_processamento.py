@@ -62,3 +62,7 @@ def test_marcar_como_concluido_atualiza_status_e_fim() -> None:
     assert processamento.status == StatusProcessamento.CONCLUIDO
     assert processamento.fim is not None
     assert processamento.erro is None
+
+
+def test_tentativas_comecam_em_zero() -> None:
+    assert _processamento().tentativas == 0

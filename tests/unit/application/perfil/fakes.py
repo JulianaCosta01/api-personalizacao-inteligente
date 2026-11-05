@@ -1,6 +1,10 @@
 from uuid import UUID
 
-from application.ports.llm import ConteudoPersonalizado, ILLMPort
+from application.ports.llm import (
+    ConteudoPersonalizado,
+    FalhaTransitoriaDoProvedorError,
+    ILLMPort,
+)
 from application.ports.perfil_repository import IPerfilRepository
 from domain.perfil.dimensoes import Compreensao, Entrada, EstiloProcessamento, Percepcao
 from domain.perfil.perfil import Perfil
@@ -48,6 +52,7 @@ class LLMFake(ILLMPort):
         conteudo_reescrito: ConteudoPersonalizado | None = None,
         levantar_reescrita: bool = False,
         retornar_none_na_reescrita: bool = False,
+        falha_transitoria_na_reescrita: FalhaTransitoriaDoProvedorError | None = None,
     ) -> None:
         self.descricao = descricao
         self.levantar = levantar
@@ -57,6 +62,7 @@ class LLMFake(ILLMPort):
         )
         self.levantar_reescrita = levantar_reescrita
         self.retornar_none_na_reescrita = retornar_none_na_reescrita
+        self.falha_transitoria_na_reescrita = falha_transitoria_na_reescrita
         self.chamadas_reescrita = 0
 
     async def gerar_descricao_perfil(
@@ -80,6 +86,8 @@ class LLMFake(ILLMPort):
         compreensao: Compreensao,
     ) -> ConteudoPersonalizado | None:
         self.chamadas_reescrita += 1
+        if self.falha_transitoria_na_reescrita is not None:
+            raise self.falha_transitoria_na_reescrita
         if self.levantar_reescrita:
             raise RuntimeError("falha simulada do Gemini")
         if self.retornar_none_na_reescrita:

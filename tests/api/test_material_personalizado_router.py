@@ -34,12 +34,8 @@ _AUTH = {"Authorization": f"Bearer {SERVICE_TOKEN}"}
 
 @pytest_asyncio.fixture(autouse=True)
 async def storage_fake() -> AsyncGenerator[ObjectStorageFake]:
-    # Mesmo padrão de test_processamento_router.py: substitui o adaptador real
-    # do Supabase Storage (que faria uma chamada HTTP de verdade a STORAGE_URL)
-    # por um dublê em memória. autouse=True porque o FastAPI resolve o
-    # Depends() antes do handler rodar, mesmo em caminhos (404/409) que nunca
-    # chegam a usar o storage — sem o fake, toda requisição destas rotas
-    # tentaria construir o cliente HTTP real.
+    # Substitui o Supabase Storage real por um dublê em memória. autouse=True porque o
+    # FastAPI resolve o Depends() antes do handler, mesmo em 404/409.
     fake = ObjectStorageFake()
     app.dependency_overrides[_storage_material_personalizado] = lambda: fake
     yield fake
@@ -49,9 +45,8 @@ async def storage_fake() -> AsyncGenerator[ObjectStorageFake]:
 async def _criar_processamento(
     db_session: AsyncSession, status: StatusProcessamento
 ) -> Processamento:
-    # Semeado diretamente via repositório: um Processamento concluído só
-    # existe, em uso normal, depois do pipeline real do Worker (Fase 7) —
-    # inalcançável pela API sozinha nestes testes.
+    # Semeado direto via repositório: um Processamento concluído só existe, em
+    # uso normal, depois do pipeline real do Worker: inalcançável pela API sozinha aqui.
     aluno = Aluno(
         id=uuid4(),
         nome="Kristiano Fernandes Plácido",
@@ -116,10 +111,8 @@ async def _criar_material_personalizado(
     )
     await MaterialPersonalizadoRepositorySQLAlchemy(db_session).adicionar(material_personalizado)
     if storage_fake is not None:
-        # O PDF em si não é gravado por este cenário de teste (só a linha do
-        # banco) — o fake precisa "conhecer" a chave para poder assinar uma
-        # URL de leitura para ela, exatamente como o adaptador real exigiria
-        # que o objeto existisse no bucket.
+        # O PDF em si não é gravado aqui (só a linha do banco): o fake precisa "conhecer"
+        # a chave para assinar a URL, como o adaptador real exigiria com o objeto no bucket.
         storage_fake.salvos[material_personalizado.caminho_pdf] = b"conteudo fake"
     return material_personalizado
 
@@ -140,7 +133,7 @@ async def test_get_material_do_processamento_concluido_retorna_200_com_url_assin
     corpo = response.json()
     assert corpo["id"] == str(material_personalizado.id)
     assert corpo["processamento_id"] == str(processamento.id)
-    # Nunca a chave bruta do Storage — sempre uma URL assinada (Documento 3, §7).
+    # Nunca a chave bruta do Storage: sempre uma URL assinada.
     assert corpo["caminho_pdf"] != material_personalizado.caminho_pdf
     assert corpo["caminho_pdf"].startswith("http")
 

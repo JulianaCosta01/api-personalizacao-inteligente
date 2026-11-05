@@ -3,25 +3,16 @@ services:
     image: postgres:16
     restart: unless-stopped
     environment:
-      # Sem fallback (Task 3 — hardening): subir sem essas variáveis definidas
-      # no .env deve falhar explicitamente na leitura do Compose, nunca cair
-      # em silêncio para a credencial previsível "postgres"/"postgres".
+      # Sem fallback: subir sem essas variáveis no .env falha explicitamente,
+      # nunca cai em silêncio para a credencial previsível "postgres"/"postgres".
       POSTGRES_USER: ${POSTGRES_USER:?defina POSTGRES_USER no .env}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
-      # Não é credencial — nome de banco não concede acesso por si só; mantém
-      # o default de desenvolvimento já usado em todo o projeto ("mpi").
       POSTGRES_DB: ${POSTGRES_DB:-mpi}
-      # Explícito, não deixado para o default da imagem: o container "mpi-postgres"
-      # pré-existente (Task 2) grava os dados exatamente neste caminho — mantê-lo
-      # aqui garante que o container gerenciado pelo Compose aponte para o mesmo
-      # lugar, em vez de depender implicitamente do default da imagem coincidir.
+      # Explícito para garantir que o container aponte para o mesmo caminho de
+      # dados já usado pelo volume existente, em vez do default da imagem.
       PGDATA: /var/lib/postgresql/data
-    # porta do host configurável — o padrão foge de 5432 porque uma instalação
-    # nativa do Postgres no Windows já costuma ocupá-la (foi o conflito real
-    # encontrado ao integrar o banco nesta fase). Bind restrito a 127.0.0.1
-    # (Task 3 — hardening): acesso do host (dev/migration manual) continua
-    # funcionando via localhost, mas a porta para de responder em qualquer
-    # outra interface de rede (LAN, IP público do host).
+    # 5433, não 5432: evita conflito com instalação nativa do Postgres no host.
+    # Bind em 127.0.0.1: a porta não responde em outra interface de rede.
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
     volumes:
@@ -37,26 +28,46 @@ services:
       context: .
       dockerfile: docker/api.Dockerfile
     restart: unless-stopped
-    env_file: .env
+    # Teto de recursos: um PDF malicioso ou patológico não pode consumir o host inteiro.
+    # Ajustáveis por variável de ambiente do Compose, sem editar este arquivo.
+    mem_limit: ${API_MEM_LIMIT:-1g}
+    cpus: ${API_CPUS:-1.0}
+    pids_limit: 256
+    # Sem `env_file`: o container recebe só as variáveis listadas aqui. O .env também guarda a senha
+    # do superusuário do PostgreSQL (POSTGRES_USER/POSTGRES_PASSWORD), que a API nunca deve ver.
+    # Variável sem valor (`CHAVE:`) é repassada do .env/ambiente do Compose só se estiver definida.
     environment:
-      # Sobrescreve o valor do .env (voltado para o host, porta mapeada) pelo hostname
-      # interno do Compose: dentro da rede dos containers, "postgres" resolve para o
-      # serviço acima e a porta é sempre a interna (5432), nunca a mapeada no host.
-      #
-      # Fase 11 — privilégio mínimo: API roda com a role de runtime (mpi_app),
-      # nunca com POSTGRES_USER (admin). POSTGRES_APP_PASSWORD é obrigatório
-      # (":?", sem fallback) de propósito — um fallback aqui poderia mascarar
-      # a variável não definida caindo silenciosamente numa senha errada, em
-      # vez de falhar alto e cedo. mpi_app precisa existir previamente (ver
-      # scripts/setup_postgres_app_role.py).
+      # Hostname interno do Compose, role de runtime (mpi_app), sem fallback de
+      # senha: falha alto e cedo em vez de mascarar erro (ver setup_postgres_app_role.py).
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_APP_USER:-mpi_app}:${POSTGRES_APP_PASSWORD:?defina POSTGRES_APP_PASSWORD no .env}@postgres:5432/${POSTGRES_DB:-mpi}
+      SERVICE_TOKEN: ${SERVICE_TOKEN:?defina SERVICE_TOKEN no .env}
+      STORAGE_URL: ${STORAGE_URL:?defina STORAGE_URL no .env}
+      STORAGE_SERVICE_KEY: ${STORAGE_SERVICE_KEY:?defina STORAGE_SERVICE_KEY no .env}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:?defina GEMINI_API_KEY no .env}
+      ENVIRONMENT:
+      LOG_LEVEL:
+      CORS_ORIGINS_PERMITIDAS:
+      STORAGE_BUCKET_MATERIAIS:
+      MATERIAL_TAMANHO_MAXIMO_BYTES:
+      CORPO_JSON_TAMANHO_MAXIMO_BYTES:
+      URL_LEITURA_EXPIRACAO_SEGUNDOS:
+      PDF_PAGINAS_MAXIMAS:
+      PDF_PIXELS_MAXIMOS_POR_IMAGEM:
+      GEMINI_MODEL:
+      GEMINI_TIMEOUT_SEGUNDOS:
+      GEMINI_RETRY_TENTATIVAS:
+      GEMINI_RETRY_ATRASO_INICIAL_SEGUNDOS:
+      GEMINI_RETRY_ATRASO_MAXIMO_SEGUNDOS:
+      GEMINI_RETRY_JITTER_SEGUNDOS:
+      RATE_LIMIT_PROCESSAMENTOS_POR_MINUTO:
+      RATE_LIMIT_MATERIAIS_POR_MINUTO:
+      RATE_LIMIT_PERFIS_POR_MINUTO:
     ports:
       - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
-    # Fase 11 — readiness real: chama /ready (não só /health) via Python, já
-    # presente na imagem — evita instalar curl/wget só para isto.
+    # Chama /ready via Python já presente na imagem, sem instalar curl/wget.
     healthcheck:
       test:
         [
@@ -75,17 +86,59 @@ services:
       context: .
       dockerfile: docker/worker.Dockerfile
     restart: unless-stopped
-    env_file: .env
+    # O Worker é quem processa PDFs de terceiros (PyMuPDF, WeasyPrint): é o que mais precisa de teto.
+    mem_limit: ${WORKER_MEM_LIMIT:-2g}
+    cpus: ${WORKER_CPUS:-2.0}
+    pids_limit: 256
+    # Sem `env_file`, pelo mesmo motivo do serviço api. O Worker não recebe a chave do Storage nem o
+    # token de serviço além do que Settings exige (SERVICE_TOKEN é campo obrigatório de Settings).
     environment:
-      # Mesmo override de DATABASE_URL do serviço api, pelo mesmo motivo — inclusive a
-      # role de runtime (mpi_app) em vez do admin (Fase 11, ver comentário no serviço api).
+      # Mesmo override de DATABASE_URL do serviço api, pelo mesmo motivo.
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_APP_USER:-mpi_app}:${POSTGRES_APP_PASSWORD:?defina POSTGRES_APP_PASSWORD no .env}@postgres:5432/${POSTGRES_DB:-mpi}
+      SERVICE_TOKEN: ${SERVICE_TOKEN:?defina SERVICE_TOKEN no .env}
+      STORAGE_URL: ${STORAGE_URL:?defina STORAGE_URL no .env}
+      STORAGE_SERVICE_KEY: ${STORAGE_SERVICE_KEY:?defina STORAGE_SERVICE_KEY no .env}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:?defina GEMINI_API_KEY no .env}
+      ENVIRONMENT:
+      LOG_LEVEL:
+      STORAGE_BUCKET_MATERIAIS:
+      MATERIAL_TAMANHO_MAXIMO_BYTES:
+      PDF_PAGINAS_MAXIMAS:
+      PDF_PIXELS_MAXIMOS_POR_IMAGEM:
+      GEMINI_MODEL:
+      GEMINI_TIMEOUT_SEGUNDOS:
+      GEMINI_TIMEOUT_TOTAL_SEGUNDOS:
+      GEMINI_REESCRITA_COMPLEMENTO_TENTATIVAS:
+      GEMINI_REESCRITA_PROPORCAO_MINIMA:
+      PDF_ANEXAR_IMAGENS_ORIGINAIS:
+      PIPELINE_TIMEOUT_EXTRACAO_SEGUNDOS:
+      PIPELINE_TIMEOUT_PDF_SEGUNDOS:
+      GEMINI_RETRY_TENTATIVAS:
+      GEMINI_RETRY_ATRASO_INICIAL_SEGUNDOS:
+      GEMINI_RETRY_ATRASO_MAXIMO_SEGUNDOS:
+      GEMINI_RETRY_JITTER_SEGUNDOS:
+      WORKER_INTERVALO_POLLING_SEGUNDOS:
+      WORKER_IDADE_MAXIMA_PRESOS_SEGUNDOS:
+      WORKER_PRAZO_MAXIMO_JOB_SEGUNDOS:
+      WORKER_TENTATIVAS_MAXIMAS:
+      WORKER_REPETICAO_ATRASO_BASE_SEGUNDOS:
+      WORKER_REPETICAO_ATRASO_MAXIMO_SEGUNDOS:
+      # Imagens geradas por IA: desligadas por padrão. As credenciais da Cloudflare só existem
+      # neste serviço, nunca na API, e vêm do .env sem valor aqui.
+      IMAGENS_GERADAS_HABILITADAS:
+      IMAGENS_PROVEDOR:
+      IMAGENS_MAX_POR_MATERIAL:
+      IMAGENS_TIMEOUT_TOTAL_SEGUNDOS:
+      IMAGENS_ORCAMENTO_TOTAL_SEGUNDOS:
+      CLOUDFLARE_ACCOUNT_ID:
+      CLOUDFLARE_API_TOKEN:
+      CLOUDFLARE_IMAGE_MODEL:
+      CLOUDFLARE_IMAGE_STEPS:
+      CLOUDFLARE_IMAGE_TIMEOUT_SEGUNDOS:
     depends_on:
       postgres:
         condition: service_healthy
-    # Fase 11 — heartbeat: sem porta nem HTTP, o Worker não é um servidor;
-    # a própria checagem já usada pelo módulo (worker/heartbeat.py) roda
-    # dentro do container e sai com 0/1.
+    # Worker não é servidor HTTP: o heartbeat roda dentro do container e sai com 0/1.
     healthcheck:
       test: ["CMD", "python", "-m", "worker.heartbeat"]
       interval: 15s
@@ -94,11 +147,8 @@ services:
       retries: 3
 
 volumes:
-  # Volume externo: o container "mpi-postgres" (Task 2) já continha, neste volume
-  # anônimo, o banco com as migrations 10e649ad8790 e 4d5b6ae168df aplicadas.
-  # "external: true" + "name" fixo impedem o Compose de criar um volume novo e
-  # vazio com o nome de projeto (api-personalizacao-inteligente_postgres_data) —
-  # ele deve usar exatamente este volume existente, nunca um substituto.
+  # "external: true" + "name" fixo: o Compose deve usar o volume existente
+  # (já com as migrations aplicadas), nunca criar um novo e vazio.
   postgres_data:
     external: true
     name: f73d5e9e1bb5780fd44bed006c9e8a3ccf9a756aa4d955cdccf3e729daacbf83

@@ -132,10 +132,8 @@ async def test_adiciona_e_obtem_por_material_personalizado_id_e_aluno_id(
 async def test_porcentagem_leitura_e_devolvida_como_float_nos_limites_exatos(
     db_session: AsyncSession,
 ) -> None:
-    # Não é um teste redundante com os fakes de unidade: só contra o driver
-    # assíncrono real (asyncpg) é possível pegar uma regressão em que a coluna
-    # Numeric(5, 4) volte como Decimal em vez de float — o que quebraria a
-    # comparação feita em StatusLeitura na camada de Domínio.
+    # Só contra o driver assíncrono real (asyncpg) se pega uma regressão em que Numeric(5, 4)
+    # volte como Decimal em vez de float, quebrando a comparação em StatusLeitura no Domínio.
     aluno, material_personalizado = await _criar_material_personalizado(db_session)
     repositorio = AcessoRepositorySQLAlchemy(db_session)
     acesso = _acesso(material_personalizado.id, aluno.id, porcentagem_leitura=1.0)

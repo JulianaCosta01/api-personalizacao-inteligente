@@ -1,6 +1,6 @@
 from uuid import UUID, uuid4
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from application.ports.queue import IQueuePort
@@ -14,23 +14,28 @@ class FilaPostgres(IQueuePort):
         self._session = session
 
     async def publicar(self, processamento_id: UUID) -> None:
-        # SAVEPOINT: uma falha real de banco aqui (ex.: violação de constraint)
-        # não pode envenenar a transação externa — o chamador (ex.:
-        # CriarProcessamentoUseCase) precisa da sessão ainda utilizável para
-        # marcar o Processamento como erro logo em seguida.
+        # SAVEPOINT: uma falha de constraint aqui não pode envenenar a transação
+        # externa, o chamador precisa da sessão utilizável depois.
         async with self._session.begin_nested():
             self._session.add(MensagemFila(id=uuid4(), processamento_id=processamento_id))
             await self._session.flush()
 
     async def reivindicar_proximo(self) -> UUID | None:
-        # UPDATE condicional: só um Worker consegue transicionar uma dada linha
-        # de pendente -> em_processamento. FOR UPDATE SKIP LOCKED evita que dois
-        # Workers concorrentes disputem a mesma linha candidata na subquery.
+        # UPDATE condicional: só um Worker transiciona uma linha de pendente para
+        # em_processamento; FOR UPDATE SKIP LOCKED evita disputa entre Workers.
         candidato = (
             select(ProcessamentoModel.id)
             .select_from(ProcessamentoModel)
             .join(MensagemFila, MensagemFila.processamento_id == ProcessamentoModel.id)
             .where(ProcessamentoModel.status == StatusProcessamento.PENDENTE.value)
+            # Espera de uma nova tentativa (falha transitória): antes do horário, ainda não é
+            # candidato. Sem espera (NULL) ou com o horário vencido, segue a ordem da fila.
+            .where(
+                or_(
+                    ProcessamentoModel.disponivel_em.is_(None),
+                    ProcessamentoModel.disponivel_em <= func.now(),
+                )
+            )
             .order_by(MensagemFila.criado_em.asc())
             .limit(1)
             .with_for_update(of=ProcessamentoModel, skip_locked=True)
@@ -38,7 +43,12 @@ class FilaPostgres(IQueuePort):
         instrucao = (
             update(ProcessamentoModel)
             .where(ProcessamentoModel.id == candidato.scalar_subquery())
-            .values(status=StatusProcessamento.EM_PROCESSAMENTO.value, inicio=func.now())
+            .values(
+                status=StatusProcessamento.EM_PROCESSAMENTO.value,
+                inicio=func.now(),
+                tentativas=ProcessamentoModel.tentativas + 1,
+                disponivel_em=None,
+            )
             .returning(ProcessamentoModel.id)
         )
         resultado = await self._session.execute(instrucao)

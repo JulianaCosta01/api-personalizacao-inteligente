@@ -1,4 +1,4 @@
-"""Logging estruturado em JSON, com correlação por requisição (Documento 4, Seção 14).
+"""Logging estruturado em JSON, com correlação por requisição.
 
 Usa apenas a biblioteca padrão: um formatter próprio é suficiente para o formato
 exigido (JSON + request_id), e evita depender de structlog/python-json-logger

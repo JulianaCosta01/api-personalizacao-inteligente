@@ -62,7 +62,7 @@ class CriarPerfilUseCase:
         return perfil
 
     async def _gerar_descricao(self, perfil: Perfil) -> str | None:
-        # Falha ou timeout do Gemini nunca impede a criação do Perfil — as
+        # Falha ou timeout do Gemini nunca impede a criação do Perfil: as
         # quatro dimensões já estão persistidas nesse ponto.
         try:
             return await self._llm.gerar_descricao_perfil(

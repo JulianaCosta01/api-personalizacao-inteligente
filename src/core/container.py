@@ -1,8 +1,7 @@
-"""Ponto único de composição de dependências (Documento 4, Seção 7).
+"""Ponto único de composição de dependências.
 
 Na inicialização do processo, instancia as implementações concretas de
-Infrastructure e as injeta nos casos de uso da Application. Vazio até a
-Fase 3, quando existirem os primeiros repositórios e casos de uso para compor.
+Infrastructure e as injeta nos casos de uso da Application.
 """
 
 

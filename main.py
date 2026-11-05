@@ -37,13 +37,6 @@ if __name__ == "__main__":
     caminho_md = converter_pdf_para_md(CAMINHO_PDF)
 
    
-   # --- CÓDIGO TESTE ---
-   # with open(caminho_md, "r", encoding="utf-8") as arquivo:
-    #    texto_completo = arquivo.read()
-        
-    #print(f"O arquivo tem {len(texto_completo)} caracteres.")
-    #print("Abaixo seguem os primeiros 500 caracteres gerados:")
-    #print(texto_completo[:500])
 
     # Etapa 2.1 - Carregar todo o conteúdo do PDF como um único assunto
     print("\nCarregando todo o conteúdo da disciplina (arquivo único)...")

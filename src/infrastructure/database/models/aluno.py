@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 
 class Aluno(Base):
-    """Estudante do Moodle, sincronizado no primeiro contato do Plugin (Documento 2, §4.1)."""
+    """Estudante do Moodle, sincronizado no primeiro contato do Plugin."""
 
     __tablename__ = "aluno"
     __table_args__ = (UniqueConstraint("matricula", name="uq_aluno_matricula"),)
@@ -25,7 +25,7 @@ class Aluno(Base):
     # nome de pessoa: 255 é o teto convencional do setor, com folga ampla sobre
     # qualquer nome real.
     nome: Mapped[str] = mapped_column(String(255), nullable=False)
-    # RFC 5321 limita o endereço completo a 254 caracteres — teto técnico, não arbitrário.
+    # RFC 5321 limita o endereço completo a 254 caracteres: teto técnico, não arbitrário.
     email: Mapped[str] = mapped_column(String(254), nullable=False)
     # matrícula da UFMA é numérica curta (ex.: "2021045123"); 20 dá folga a
     # variações de formato sem abrir espaço demais.
@@ -33,10 +33,8 @@ class Aluno(Base):
     data_cadastro: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
-    # "experimental"/"controle": categórico curto, imutável após a criação
-    # (Documento 3, §4.1). Sem CHECK — o Documento 4 §8 restringe CHECK apenas
-    # a Processamento.status; o conjunto fechado aqui é validado no schema
-    # Pydantic da API.
+    # "experimental"/"controle", imutável após criação. Validado no schema Pydantic;
+    # CHECK no banco fica restrito a Processamento.status.
     grupo_experimental: Mapped[str] = mapped_column(String(20), nullable=False)
 
     perfis: Mapped[list["PerfilAprendizagem"]] = relationship(back_populates="aluno")

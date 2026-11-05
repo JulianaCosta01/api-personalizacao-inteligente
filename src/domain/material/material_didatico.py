@@ -22,9 +22,8 @@ class MaterialDidatico:
         caminho_storage: str,
         data_upload: datetime,
     ) -> None:
-        # id e titulo identificam o material entre revisões; só o arquivo e a
-        # versão mudam, para que os Processamentos já vinculados continuem
-        # apontando para o mesmo registro.
+        # id e titulo identificam o material entre revisões; só arquivo e versão
+        # mudam, para que Processamentos já vinculados continuem apontando pra cá.
         self.nome_arquivo = nome_arquivo
         self.tipo_arquivo = tipo_arquivo
         self.caminho_storage = caminho_storage

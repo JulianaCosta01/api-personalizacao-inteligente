@@ -17,8 +17,8 @@ def _session_factory() -> async_sessionmaker[AsyncSession]:
 @asynccontextmanager
 async def sessao_transacional() -> AsyncIterator[AsyncSession]:
     """Uma AsyncSession por escopo de uso: commit se não houver exceção, rollback
-    caso contrário. Usada tanto pela API (via get_db_session) quanto pelo Worker
-    (Fase 7), que não tem um ciclo de vida de requisição HTTP para se apoiar.
+    caso contrário. Usada pela API (via get_db_session) e pelo Worker, que não
+    tem um ciclo de vida de requisição HTTP para se apoiar.
     """
     async with _session_factory()() as session:
         try:
@@ -32,9 +32,9 @@ async def sessao_transacional() -> AsyncIterator[AsyncSession]:
 async def get_db_session() -> AsyncGenerator[AsyncSession]:
     """Fornece uma AsyncSession por escopo de uso, no formato esperado pelo FastAPI Depends.
 
-    Transação única por requisição (Documento 4, §8): commit se o caso de uso
+    Transação única por requisição: commit se o caso de uso
     concluir sem exceção, rollback caso contrário. Os repositórios nunca
-    commitam — essa é a única camada responsável pelo fechamento da transação.
+    commitam: essa é a única camada responsável pelo fechamento da transação.
     """
     async with sessao_transacional() as session:
         yield session

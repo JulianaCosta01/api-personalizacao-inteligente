@@ -30,10 +30,15 @@ Thumbs.db
 *.pdf
 !documentacao/**/*.pdf
 
-# artefatos do teste de carga (Fase 10 Task 2) — dados sintéticos e resultados locais,
-# nunca uma fonte de verdade a versionar
+# artefatos do teste de carga: dados sintéticos e resultados locais, não versionar
 loadtest/seed_data.json
 loadtest/resultados/
 
-# dumps de backup do PostgreSQL (Fase 11) — contêm dados reais, nunca versionar
+# dumps de backup do PostgreSQL contêm dados reais, nunca versionar
 backups/
+
+# artefatos manuais de teste/inspeção pontual, não gerados pelo projeto
+*_teste.json
+*_e2e*.json
+openapi.json
+inspect_*.txt

@@ -15,8 +15,7 @@ def _aluno(*, matricula: str | None = None) -> Aluno:
         id=uuid4(),
         nome="Kristiano",
         email="kristiano@discente.ufma.br",
-        # matricula é String(20) no modelo da Fase 2 — uuid4() puro (36 chars)
-        # estoura a coluna.
+        # matricula é String(20): um uuid4() puro (36 chars) estoura a coluna.
         matricula=matricula or str(uuid4())[:20],
         grupo_experimental=GrupoExperimental.EXPERIMENTAL,
         data_cadastro=datetime.now(UTC),

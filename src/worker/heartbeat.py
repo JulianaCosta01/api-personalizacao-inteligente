@@ -1,15 +1,7 @@
-"""Heartbeat do Worker (Fase 11 — Documento 5 §185; Documento 4 §19).
+"""Heartbeat do Worker.
 
-Sem Redis nem infraestrutura externa nova: um arquivo local em /tmp, escrito
-pelo próprio processo do Worker a cada iteração do loop (worker/loop.py) e
-lido pelo healthcheck do Docker Compose (`python -m worker.heartbeat`).
-
-Escritor único, sem lock: o Worker roda um único processo com um loop
-sequencial (nunca duas iterações concorrentes), então não há disputa de
-escrita a proteger. Seguro após reinício do container: /tmp é efêmero por
-container, então um container novo começa sem heartbeat residual — o
-`start_period` do healthcheck do Compose cobre essa janela inicial antes da
-primeira iteração completar.
+Arquivo em /tmp escrito a cada iteração do loop e lido pelo healthcheck do Compose.
+Escritor único, então não precisa de lock.
 """
 
 import contextlib
@@ -25,7 +17,7 @@ _CAMINHO_PADRAO = Path("/tmp/worker_heartbeat")  # noqa: S108 -- efêmero de pro
 def atualizar_heartbeat(caminho: Path = _CAMINHO_PADRAO) -> None:
     """Grava o instante atual no arquivo de heartbeat.
 
-    Falha ao escrever (ex.: /tmp sem espaço) não derruba o Worker — só deixa
+    Falha ao escrever (ex.: /tmp sem espaço) não derruba o Worker, só deixa
     o heartbeat desatualizado, o que o healthcheck já trata como "não vivo".
     """
     with contextlib.suppress(OSError):
@@ -36,7 +28,7 @@ def heartbeat_esta_valido(idade_maxima_segundos: float, caminho: Path = _CAMINHO
     """True se o arquivo existe e foi atualizado dentro do limite informado.
 
     Ausência do arquivo (container recém-iniciado, antes da primeira
-    iteração) conta como inválido — é papel do `start_period` do healthcheck
+    iteração) conta como inválido: é papel do `start_period` do healthcheck
     tolerar essa janela, não desta função fingir que já está tudo pronto.
     """
     try:
@@ -47,18 +39,17 @@ def heartbeat_esta_valido(idade_maxima_segundos: float, caminho: Path = _CAMINHO
 
 
 def limite_padrao_segundos() -> float:
-    """Pior caso plausível de um ciclo real: intervalo de polling entre
-    tentativas + orçamento total de uma chamada ao Gemini (a etapa mais longa
-    de um ciclo, Settings.gemini_timeout_total_segundos) + margem para
-    extração/geração de PDF. Derivado de Settings já existentes — nenhum
-    valor novo de configuração foi introduzido.
+    """Pior caso de um ciclo real: polling + o prazo máximo de UM job (worker_prazo_maximo_job_
+    segundos, que já engloba as chamadas ao Gemini, as extras de complementação, as imagens e o
+    PDF) + margem. O heartbeat só é gravado entre ciclos, então durante um job longo ele envelhece
+    até esse limite. Deriva de Settings já existentes, sem introduzir configuração nova.
     """
     settings = get_settings()
-    margem_pipeline_segundos = 30.0
+    margem_segundos = 30.0
     return (
         settings.worker_intervalo_polling_segundos
-        + settings.gemini_timeout_total_segundos
-        + margem_pipeline_segundos
+        + settings.worker_prazo_maximo_job_segundos
+        + margem_segundos
     )
 
 

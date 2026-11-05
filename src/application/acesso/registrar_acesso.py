@@ -29,7 +29,7 @@ class RegistrarAcessoResultado:
 
 
 class RegistrarAcessoUseCase:
-    """Documento 3 §4.7 — PUT /materiais-personalizados/{id}/acesso."""
+    """PUT /materiais-personalizados/{id}/acesso."""
 
     def __init__(
         self,
@@ -56,9 +56,8 @@ class RegistrarAcessoUseCase:
             material.processamento_id
         )
         if processamento is None:
-            # Defensivo: processamento_id é FK NOT NULL de material_personalizado
-            # (ondelete=RESTRICT) — chegar aqui indica inconsistência de dados,
-            # não ausência documentada.
+            # Defensivo: processamento_id é FK NOT NULL (ondelete=RESTRICT), chegar
+            # aqui indica inconsistência de dados, não ausência documentada.
             logger.warning(
                 "Material personalizado %s referencia processamento %s inexistente.",
                 dados.material_personalizado_id,
@@ -71,10 +70,8 @@ class RegistrarAcessoUseCase:
             )
 
         if processamento.aluno_id != dados.aluno_id:
-            # Documento 3 §4.7: a chave natural é material_personalizado_id (path)
-            # + aluno_id (corpo), mas o aluno_id só é aceito se corresponder ao
-            # aluno do Processamento que originou o material — proteção contra
-            # BOLA/IDOR (um aluno registrando acesso em nome de outro).
+            # aluno_id do corpo só é aceito se corresponder ao
+            # dono do Processamento que originou o material (proteção BOLA/IDOR).
             logger.warning(
                 "Tentativa de registrar acesso com aluno_id %s divergente do "
                 "dono %s do material personalizado %s (possível BOLA/IDOR).",

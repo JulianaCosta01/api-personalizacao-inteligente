@@ -44,6 +44,23 @@ async def test_post_repetido_com_mesma_matricula_retorna_200_e_mesmo_id(
     assert segundo.json()["id"] == primeiro.json()["id"]
 
 
+async def test_post_com_matricula_existente_nao_devolve_dados_pessoais(
+    client: AsyncClient,
+) -> None:
+    payload = _payload_cadastro()
+    primeiro = await client.post("/api/v1/alunos", json=payload, headers=_AUTH)
+
+    # Quem repete a matrícula (mesmo com outro nome/e-mail) só recebe id e grupo.
+    outro = {**payload, "nome": "Outra Pessoa", "email": "outra@discente.ufma.br"}
+    segundo = await client.post("/api/v1/alunos", json=outro, headers=_AUTH)
+
+    assert segundo.status_code == 200
+    assert set(segundo.json()) == {"id", "grupo_experimental"}
+    assert segundo.json()["grupo_experimental"] == primeiro.json()["grupo_experimental"]
+    assert "nome" not in segundo.text and "email" not in segundo.text
+    assert set(primeiro.json()) >= {"id", "nome", "email", "matricula", "grupo_experimental"}
+
+
 async def test_post_com_campo_desconhecido_retorna_400(client: AsyncClient) -> None:
     payload = _payload_cadastro()
     payload["campo_nao_permitido"] = "valor-qualquer"
@@ -65,9 +82,8 @@ async def test_post_com_email_invalido_retorna_400(client: AsyncClient) -> None:
 
 
 async def test_persistencia_real_entre_requisicoes_http_separadas(client: AsyncClient) -> None:
-    # Regressão direta do bug de sessão sem commit: cada chamada abre e fecha
-    # sua própria requisição/sessão, então só passa se o GET enxergar o que o
-    # POST anterior realmente gravou no banco.
+    # Regressão do bug de sessão sem commit: só passa se o GET enxergar o que
+    # o POST anterior gravou de fato no banco, cada um em sua própria requisição.
     cadastro = await client.post("/api/v1/alunos", json=_payload_cadastro(), headers=_AUTH)
     aluno_id = cadastro.json()["id"]
 

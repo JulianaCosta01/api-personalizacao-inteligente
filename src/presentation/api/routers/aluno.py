@@ -13,6 +13,7 @@ from presentation.api.dependencies import validar_token_servico
 from presentation.api.schemas.aluno import (
     AlunoAtualizacaoRequest,
     AlunoCadastroRequest,
+    AlunoExistenteResponse,
     AlunoResponse,
 )
 
@@ -25,19 +26,23 @@ async def _repositorio_aluno(session: AsyncSession = Depends(get_db_session)) ->
     return AlunoRepositorySQLAlchemy(session)
 
 
-@router.post("", response_model=AlunoResponse)
+@router.post("", response_model=AlunoResponse | AlunoExistenteResponse)
 async def cadastrar_aluno(
     dados: AlunoCadastroRequest,
     response: Response,
     repositorio: IAlunoRepository = Depends(_repositorio_aluno),
-) -> AlunoResponse:
+) -> AlunoResponse | AlunoExistenteResponse:
     resultado = await CadastrarAlunoUseCase(repositorio).executar(
         CadastrarAlunoInput(nome=dados.nome, email=dados.email, matricula=dados.matricula)
     )
-    # Upsert por matricula (Documento 3, §4.1): 201 para cadastro novo, 200
+    # Upsert por matricula: 201 para cadastro novo, 200
     # quando o registro já existia e foi apenas retornado.
-    response.status_code = status.HTTP_201_CREATED if resultado.criado else status.HTTP_200_OK
-    return AlunoResponse.model_validate(resultado.aluno)
+    if resultado.criado:
+        response.status_code = status.HTTP_201_CREATED
+        return AlunoResponse.model_validate(resultado.aluno)
+    # Matrícula já cadastrada: só id e grupo_experimental (ver AlunoExistenteResponse).
+    response.status_code = status.HTTP_200_OK
+    return AlunoExistenteResponse.model_validate(resultado.aluno)
 
 
 @router.get("/{id}", response_model=AlunoResponse)

@@ -1,4 +1,4 @@
-"""cria as sete tabelas do DER (Documento 2, §4.1)
+"""cria as sete tabelas do DER
 
 Revision ID: 10e649ad8790
 Revises:

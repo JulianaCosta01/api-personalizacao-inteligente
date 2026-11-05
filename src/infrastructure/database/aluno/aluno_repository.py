@@ -31,9 +31,8 @@ class AlunoRepositorySQLAlchemy(IAlunoRepository):
         try:
             await self._session.flush()
         except IntegrityError as exc:
-            # Cobre a corrida entre o obter_por_matricula do caso de uso e este
-            # INSERT (uq_aluno_matricula); sem o rollback, a sessão fica presa
-            # em estado de transação abortada para qualquer uso subsequente.
+            # Cobre a corrida entre obter_por_matricula do caso de uso e este INSERT
+            # (uq_aluno_matricula); sem rollback a sessão fica presa em transação abortada.
             await self._session.rollback()
             raise ConflitoDeEstadoError(
                 code="ALUNO_MATRICULA_DUPLICADA",
@@ -67,7 +66,7 @@ def _para_modelo(aluno: Aluno) -> AlunoModel:
         nome=aluno.nome,
         email=aluno.email,
         matricula=aluno.matricula,
-        # asyncpg exige str puro para a coluna VARCHAR — StrEnum é um subtipo de
+        # asyncpg exige str puro para a coluna VARCHAR: StrEnum é um subtipo de
         # str, mas o driver checa o tipo exato, não isinstance.
         grupo_experimental=aluno.grupo_experimental.value,
         data_cadastro=aluno.data_cadastro,

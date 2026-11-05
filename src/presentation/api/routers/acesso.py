@@ -75,8 +75,7 @@ async def registrar_acesso(
             download_realizado=dados.download_realizado,
         )
     )
-    # Documento 3 §4.7: 201 no primeiro registro, 200 nas atualizações
-    # seguintes — mesma convenção já usada em POST /materiais (revisão vs.
-    # criação) e no upsert de POST /alunos.
+    # 201 no primeiro registro, 200 nas atualizações seguintes;
+    # mesma convenção de POST /materiais (revisão vs. criação) e do upsert de POST /alunos.
     response.status_code = status.HTTP_201_CREATED if resultado.criado else status.HTTP_200_OK
     return AcessoResponse.model_validate(resultado.acesso)

@@ -1,9 +1,8 @@
-"""Tratamento central de exceções (Documento 4, Seção 15).
+"""Tratamento central de exceções.
 
 Traduz a hierarquia de domínio para o código HTTP e o envelope de erro
-padronizados no Documento 3 (§2.4 e §6). Qualquer exceção não mapeada é
-tratada como 500, com detalhes internos apenas no log — nunca no corpo
-da resposta.
+padronizados da API. Qualquer exceção não mapeada vira 500, com detalhes
+internos apenas no log, nunca no corpo da resposta.
 """
 
 import logging
@@ -28,10 +27,8 @@ logger = logging.getLogger(__name__)
 _STATUS_POR_EXCECAO: dict[type[DomainError], int] = {
     EntradaInvalidaError: status.HTTP_400_BAD_REQUEST,
     RecursoNaoEncontradoError: status.HTTP_404_NOT_FOUND,
-    # 422 fica como literal: o nome da constante mudou entre versões do
-    # starlette (HTTP_422_UNPROCESSABLE_ENTITY -> _CONTENT) e o número é
-    # exatamente o que o Documento 3 (§6) especifica, então não vale a pena
-    # acoplar a um nome que pode não existir em outra versão instalada.
+    # 422 fica como literal: o nome da constante muda entre versões do starlette,
+    # e o número é exatamente o que o contrato da API especifica.
     RegraDeNegocioVioladaError: 422,
     ConflitoDeEstadoError: status.HTTP_409_CONFLICT,
 }
@@ -62,10 +59,8 @@ async def _tratar_validacao(_request: Request, exc: RequestValidationError) -> J
 
 
 async def _tratar_http_exception(_request: Request, exc: StarletteHTTPException) -> JSONResponse:
-    # HTTPException é o único mecanismo usado pela Presentation para erros que
-    # não vêm do domínio (ex.: token de serviço ausente/inválido) — o detail
-    # já chega como {"code", "message"} nesses casos; string simples cobre o
-    # que o próprio Starlette levanta (ex.: rota inexistente).
+    # HTTPException cobre erros que não vêm do domínio (ex.: token ausente/inválido,
+    # já com detail em {"code", "message"}) ou vêm do próprio Starlette (ex.: rota inexistente).
     if isinstance(exc.detail, dict) and "code" in exc.detail and "message" in exc.detail:
         return _erro_json(exc.status_code, exc.detail["code"], exc.detail["message"])
     return _erro_json(exc.status_code, "ERRO_HTTP", str(exc.detail))
