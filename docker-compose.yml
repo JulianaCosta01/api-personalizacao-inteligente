@@ -28,11 +28,40 @@ services:
       context: .
       dockerfile: docker/api.Dockerfile
     restart: unless-stopped
-    env_file: .env
+    # Teto de recursos: um PDF malicioso ou patológico não pode consumir o host inteiro.
+    # Ajustáveis por variável de ambiente do Compose, sem editar este arquivo.
+    mem_limit: ${API_MEM_LIMIT:-1g}
+    cpus: ${API_CPUS:-1.0}
+    pids_limit: 256
+    # Sem `env_file`: o container recebe só as variáveis listadas aqui. O .env também guarda a senha
+    # do superusuário do PostgreSQL (POSTGRES_USER/POSTGRES_PASSWORD), que a API nunca deve ver.
+    # Variável sem valor (`CHAVE:`) é repassada do .env/ambiente do Compose só se estiver definida.
     environment:
       # Hostname interno do Compose, role de runtime (mpi_app), sem fallback de
-      # senha — falha alto e cedo em vez de mascarar erro (ver setup_postgres_app_role.py).
+      # senha: falha alto e cedo em vez de mascarar erro (ver setup_postgres_app_role.py).
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_APP_USER:-mpi_app}:${POSTGRES_APP_PASSWORD:?defina POSTGRES_APP_PASSWORD no .env}@postgres:5432/${POSTGRES_DB:-mpi}
+      SERVICE_TOKEN: ${SERVICE_TOKEN:?defina SERVICE_TOKEN no .env}
+      STORAGE_URL: ${STORAGE_URL:?defina STORAGE_URL no .env}
+      STORAGE_SERVICE_KEY: ${STORAGE_SERVICE_KEY:?defina STORAGE_SERVICE_KEY no .env}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:?defina GEMINI_API_KEY no .env}
+      ENVIRONMENT:
+      LOG_LEVEL:
+      CORS_ORIGINS_PERMITIDAS:
+      STORAGE_BUCKET_MATERIAIS:
+      MATERIAL_TAMANHO_MAXIMO_BYTES:
+      CORPO_JSON_TAMANHO_MAXIMO_BYTES:
+      URL_LEITURA_EXPIRACAO_SEGUNDOS:
+      PDF_PAGINAS_MAXIMAS:
+      PDF_PIXELS_MAXIMOS_POR_IMAGEM:
+      GEMINI_MODEL:
+      GEMINI_TIMEOUT_SEGUNDOS:
+      GEMINI_RETRY_TENTATIVAS:
+      GEMINI_RETRY_ATRASO_INICIAL_SEGUNDOS:
+      GEMINI_RETRY_ATRASO_MAXIMO_SEGUNDOS:
+      GEMINI_RETRY_JITTER_SEGUNDOS:
+      RATE_LIMIT_PROCESSAMENTOS_POR_MINUTO:
+      RATE_LIMIT_MATERIAIS_POR_MINUTO:
+      RATE_LIMIT_PERFIS_POR_MINUTO:
     ports:
       - "8000:8000"
     depends_on:
@@ -57,10 +86,55 @@ services:
       context: .
       dockerfile: docker/worker.Dockerfile
     restart: unless-stopped
-    env_file: .env
+    # O Worker é quem processa PDFs de terceiros (PyMuPDF, WeasyPrint): é o que mais precisa de teto.
+    mem_limit: ${WORKER_MEM_LIMIT:-2g}
+    cpus: ${WORKER_CPUS:-2.0}
+    pids_limit: 256
+    # Sem `env_file`, pelo mesmo motivo do serviço api. O Worker não recebe a chave do Storage nem o
+    # token de serviço além do que Settings exige (SERVICE_TOKEN é campo obrigatório de Settings).
     environment:
       # Mesmo override de DATABASE_URL do serviço api, pelo mesmo motivo.
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_APP_USER:-mpi_app}:${POSTGRES_APP_PASSWORD:?defina POSTGRES_APP_PASSWORD no .env}@postgres:5432/${POSTGRES_DB:-mpi}
+      SERVICE_TOKEN: ${SERVICE_TOKEN:?defina SERVICE_TOKEN no .env}
+      STORAGE_URL: ${STORAGE_URL:?defina STORAGE_URL no .env}
+      STORAGE_SERVICE_KEY: ${STORAGE_SERVICE_KEY:?defina STORAGE_SERVICE_KEY no .env}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:?defina GEMINI_API_KEY no .env}
+      ENVIRONMENT:
+      LOG_LEVEL:
+      STORAGE_BUCKET_MATERIAIS:
+      MATERIAL_TAMANHO_MAXIMO_BYTES:
+      PDF_PAGINAS_MAXIMAS:
+      PDF_PIXELS_MAXIMOS_POR_IMAGEM:
+      GEMINI_MODEL:
+      GEMINI_TIMEOUT_SEGUNDOS:
+      GEMINI_TIMEOUT_TOTAL_SEGUNDOS:
+      GEMINI_REESCRITA_COMPLEMENTO_TENTATIVAS:
+      GEMINI_REESCRITA_PROPORCAO_MINIMA:
+      PDF_ANEXAR_IMAGENS_ORIGINAIS:
+      PIPELINE_TIMEOUT_EXTRACAO_SEGUNDOS:
+      PIPELINE_TIMEOUT_PDF_SEGUNDOS:
+      GEMINI_RETRY_TENTATIVAS:
+      GEMINI_RETRY_ATRASO_INICIAL_SEGUNDOS:
+      GEMINI_RETRY_ATRASO_MAXIMO_SEGUNDOS:
+      GEMINI_RETRY_JITTER_SEGUNDOS:
+      WORKER_INTERVALO_POLLING_SEGUNDOS:
+      WORKER_IDADE_MAXIMA_PRESOS_SEGUNDOS:
+      WORKER_PRAZO_MAXIMO_JOB_SEGUNDOS:
+      WORKER_TENTATIVAS_MAXIMAS:
+      WORKER_REPETICAO_ATRASO_BASE_SEGUNDOS:
+      WORKER_REPETICAO_ATRASO_MAXIMO_SEGUNDOS:
+      # Imagens geradas por IA: desligadas por padrão. As credenciais da Cloudflare só existem
+      # neste serviço, nunca na API, e vêm do .env sem valor aqui.
+      IMAGENS_GERADAS_HABILITADAS:
+      IMAGENS_PROVEDOR:
+      IMAGENS_MAX_POR_MATERIAL:
+      IMAGENS_TIMEOUT_TOTAL_SEGUNDOS:
+      IMAGENS_ORCAMENTO_TOTAL_SEGUNDOS:
+      CLOUDFLARE_ACCOUNT_ID:
+      CLOUDFLARE_API_TOKEN:
+      CLOUDFLARE_IMAGE_MODEL:
+      CLOUDFLARE_IMAGE_STEPS:
+      CLOUDFLARE_IMAGE_TIMEOUT_SEGUNDOS:
     depends_on:
       postgres:
         condition: service_healthy
