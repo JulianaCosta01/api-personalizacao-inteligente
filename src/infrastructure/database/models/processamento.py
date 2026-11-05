@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, Text, func
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -15,18 +15,17 @@ if TYPE_CHECKING:
     from infrastructure.database.models.material_personalizado import MaterialPersonalizado
     from infrastructure.database.models.perfil import PerfilAprendizagem
 
-# Conjunto fechado de estados da máquina de estados (Documento 3 §14); vive aqui porque
-# é a própria constraint do banco (CHECK) que o expressa — o enum Python fica no Domínio.
+# Conjunto fechado de estados da máquina de estados; vive aqui porque
+# é a própria constraint do banco (CHECK) que o expressa: o enum Python fica no Domínio.
 ESTADOS_PROCESSAMENTO = ("pendente", "em_processamento", "concluido", "erro")
 
 
 class Processamento(Base):
-    """Solicitação de personalização de um material para um aluno (Documento 2, §4.1).
+    """Solicitação de personalização de um material para um aluno.
 
     Entidade central do fluxo assíncrono: referencia um snapshot do Perfil de
-    Aprendizagem vigente no momento da solicitação (Documento 3, §4.4) e evolui
-    por uma máquina de estados de quatro estados terminais/não-terminais
-    (Documento 3, §14).
+    Aprendizagem vigente no momento da solicitação e evolui
+    por uma máquina de estados de quatro estados terminais/não-terminais.
     """
 
     __tablename__ = "processamento"
@@ -62,7 +61,7 @@ class Processamento(Base):
     # Maior valor é "em_processamento" (17 caracteres); o conjunto fechado é
     # garantido pelo CheckConstraint acima, não apenas pelo tamanho da coluna.
     status: Mapped[str] = mapped_column(String(20), nullable=False)
-    # Preenchido pelo Worker ao iniciar a execução (Documento 3, §4.4); nulo até lá.
+    # Preenchido pelo Worker ao iniciar a execução; nulo até lá.
     modelo_ia: Mapped[str | None] = mapped_column(String(255), nullable=True)
     data_criacao: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -74,6 +73,9 @@ class Processamento(Base):
     # Mensagem de exceção/stack: tamanho imprevisível, Text para não arriscar
     # truncar contexto de diagnóstico.
     erro: Mapped[str | None] = mapped_column(Text, nullable=True)
+    tentativas: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    # Espera antes da próxima reivindicação (falha transitória do provedor); nulo = disponível.
+    disponivel_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     aluno: Mapped["Aluno"] = relationship(back_populates="processamentos")
     material_didatico: Mapped["MaterialDidatico"] = relationship(back_populates="processamentos")

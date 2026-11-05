@@ -1,10 +1,8 @@
 import struct
 import zlib
 
-# Validação estrutural, só com a biblioteca padrão, de imagens PNG/JPEG recebidas de um provedor
-# externo. Não decodifica pixels: confere a organização do arquivo (blocos, tamanhos, CRC, fim do
-# arquivo) e limita as dimensões, para que lixo com a assinatura certa, arquivo truncado ou com
-# dados anexados e "bombas" de descompressão não cheguem ao PDF/HTML.
+# Validação estrutural de PNG/JPEG vindos de provedor externo, sem decodificar pixels.
+# Barra arquivo truncado, dados anexados e bombas de descompressão antes de chegar ao PDF.
 LADO_MAXIMO_EM_PIXELS = 8192
 PIXELS_MAXIMOS = 40_000_000
 

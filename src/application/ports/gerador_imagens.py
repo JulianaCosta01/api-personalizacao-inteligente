@@ -123,10 +123,7 @@ class IGeradorDeImagens(Protocol):
     async def gerar(self, conceito: ConceitoVisual) -> ResultadoGeracaoImagem:
         """Gera uma imagem para o conceito.
 
-        Falhas previstas (tempo esgotado, serviço indisponível, conteúdo recusado, resposta
-        inválida, limite excedido) são devolvidas como `FalhaGeracaoImagem`, nunca lançadas:
-        uma imagem a menos não deve derrubar a personalização do material. Implementações
-        não devem registrar nem propagar o prompt, o conteúdo recebido nem a exceção original
-        do provedor.
+        Falhas previstas voltam como `FalhaGeracaoImagem`, nunca como exceção: uma imagem a menos
+        não pode derrubar o material. Não registrar prompt, conteúdo nem a exceção do provedor.
         """
         ...

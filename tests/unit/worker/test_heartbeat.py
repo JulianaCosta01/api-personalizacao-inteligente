@@ -20,7 +20,7 @@ def test_heartbeat_valido_logo_apos_atualizar(tmp_path: Path) -> None:
 
 def test_heartbeat_invalido_quando_claramente_expirado(tmp_path: Path) -> None:
     caminho = tmp_path / "heartbeat"
-    caminho.write_text(str(time.time() - 3600))  # 1 hora atrás — bem além de qualquer limite real
+    caminho.write_text(str(time.time() - 3600))  # 1 hora atrás, bem além de qualquer limite real
 
     assert heartbeat_esta_valido(60.0, caminho=caminho) is False
 
@@ -53,7 +53,7 @@ def test_comportamento_seguro_apos_reinicio_do_container(tmp_path: Path) -> None
 
 
 def test_atualizar_heartbeat_nao_lanca_quando_caminho_e_invalido(tmp_path: Path) -> None:
-    # Diretório em vez de arquivo: write_text falha com OSError/IsADirectoryError —
+    # Diretório em vez de arquivo: write_text falha com OSError/IsADirectoryError;
     # atualizar_heartbeat precisa engolir isso, não derrubar o Worker por causa disso.
     caminho_invalido = tmp_path  # é um diretório, não um arquivo
 
@@ -65,7 +65,11 @@ def test_limite_padrao_deriva_de_settings_existentes_sem_valor_novo_de_configura
 
     settings = get_settings()
     esperado = (
-        settings.worker_intervalo_polling_segundos + settings.gemini_timeout_total_segundos + 30.0
+        settings.worker_intervalo_polling_segundos
+        + settings.worker_prazo_maximo_job_segundos
+        + 30.0
     )
 
     assert limite_padrao_segundos() == esperado
+    # Um job pode durar até o prazo máximo sem gravar heartbeat: o limite precisa cobri-lo.
+    assert limite_padrao_segundos() > settings.worker_prazo_maximo_job_segundos

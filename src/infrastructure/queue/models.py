@@ -11,7 +11,7 @@ from infrastructure.database.base import Base
 class MensagemFila(Base):
     """Fila de publicação de Processamentos, persistida em tabela própria.
 
-    Não faz parte das sete entidades do DER (Documento 2); é um detalhe do
+    Não faz parte das sete entidades do DER; é um detalhe do
     adaptador concreto de IQueuePort, consumido pelo Worker.
     """
 

@@ -1,6 +1,6 @@
 from uuid import UUID, uuid4
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from application.ports.queue import IQueuePort
@@ -28,6 +28,14 @@ class FilaPostgres(IQueuePort):
             .select_from(ProcessamentoModel)
             .join(MensagemFila, MensagemFila.processamento_id == ProcessamentoModel.id)
             .where(ProcessamentoModel.status == StatusProcessamento.PENDENTE.value)
+            # Espera de uma nova tentativa (falha transitória): antes do horário, ainda não é
+            # candidato. Sem espera (NULL) ou com o horário vencido, segue a ordem da fila.
+            .where(
+                or_(
+                    ProcessamentoModel.disponivel_em.is_(None),
+                    ProcessamentoModel.disponivel_em <= func.now(),
+                )
+            )
             .order_by(MensagemFila.criado_em.asc())
             .limit(1)
             .with_for_update(of=ProcessamentoModel, skip_locked=True)
@@ -35,7 +43,12 @@ class FilaPostgres(IQueuePort):
         instrucao = (
             update(ProcessamentoModel)
             .where(ProcessamentoModel.id == candidato.scalar_subquery())
-            .values(status=StatusProcessamento.EM_PROCESSAMENTO.value, inicio=func.now())
+            .values(
+                status=StatusProcessamento.EM_PROCESSAMENTO.value,
+                inicio=func.now(),
+                tentativas=ProcessamentoModel.tentativas + 1,
+                disponivel_em=None,
+            )
             .returning(ProcessamentoModel.id)
         )
         resultado = await self._session.execute(instrucao)

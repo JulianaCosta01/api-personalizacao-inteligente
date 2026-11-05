@@ -11,7 +11,7 @@ async def executar_loop(intervalo_segundos: float, ciclo: Callable[[], Awaitable
     """Loop contínuo de polling, sem busy waiting: espera o intervalo configurado entre
     tentativas. CancelledError propaga para encerramento limpo; qualquer outra exceção é
     registrada e o loop continua. Heartbeat atualizado ao final de toda iteração (sucesso
-    ou falha), não só quando há trabalho — prova que o loop segue vivo, distinto de "o
+    ou falha), não só quando há trabalho: prova que o loop segue vivo, distinto de "o
     último job deu certo".
     """
     while True:
