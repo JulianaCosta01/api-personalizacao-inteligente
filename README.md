@@ -4,9 +4,6 @@ Backend que reescreve materiais didáticos em PDF para o estilo de aprendizagem 
 
 Projeto de iniciação científica (PIBIC) da Universidade Federal do Maranhão, construído para ser consumido por um plugin do Moodle.
 
-![Python](https://img.shields.io/badge/Python-3.13+-3776AB?logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)
 
 ## Demonstração
 
@@ -24,9 +21,9 @@ Páginas de um material gerado pelo sistema a partir de um PDF de Engenharia de 
     <td><img src="docs/images/material-personalizado-figura.png" alt="Página interna com uma ilustração gerada por IA, legenda numerada e a seção Atributos Essenciais de um Bom Software" width="100%"></td>
   </tr>
   <tr>
-    <td><sub>Título e abertura do próprio material.</sub></td>
-    <td><sub>Listas, tabela e exemplos para o perfil.</sub></td>
-    <td><sub>Figura opcional junto ao tópico.</sub></td>
+    <td><sub>Título e abertura do próprio material</sub></td>
+    <td><sub>Listas, tabela e exemplos para o perfil</sub></td>
+    <td><sub>Figura opcional junto ao tópico</sub></td>
   </tr>
 </table>
 
