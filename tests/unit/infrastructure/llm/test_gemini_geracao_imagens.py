@@ -21,6 +21,7 @@ from infrastructure.llm.gemini_adapter import _INSTRUCAO_COMPLEMENTAR_IMAGENS, G
 from infrastructure.pipeline import gerador_pdf as modulo_gerador_pdf
 from infrastructure.pipeline.imagens_geradas import ImagensGeradasDoMaterial
 from tests.unit.application.ports.imagens_fixture import png_valido
+from tests.unit.infrastructure.llm.limites_locais import LIMITES_LOCAIS_DE_PRODUCAO
 from tests.unit.infrastructure.llm.test_gemini_adapter import _cliente_fake, _InteractionsFake
 from tests.unit.infrastructure.pipeline.pdf_fixture import pdf_valido
 
@@ -42,7 +43,7 @@ def _imagem() -> ImagemGerada:
 
 
 class _GeradorFalso:
-    """Gerador de imagens simulado (nenhuma chamada real à OpenAI)."""
+    """Gerador de imagens simulado (nenhuma chamada real a provedor de imagens)."""
 
     def __init__(self, *comportamentos: Any) -> None:
         self._comportamentos = list(comportamentos)
@@ -69,7 +70,7 @@ def _adaptador(
         "gemini-3.1-flash-lite",
         5.0,
         gerador_de_imagens=gerador,
-        **opcoes,
+        **{**LIMITES_LOCAIS_DE_PRODUCAO, **opcoes},
     )
     return adaptador, interactions
 
@@ -112,8 +113,9 @@ def instancias(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
 
 @pytest.fixture(autouse=True)
 def sem_rede(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Garante que nenhum teste deste arquivo fala com Gemini ou OpenAI: o Gemini é um cliente
-    # falso, o gerador de imagens é falso, e qualquer tentativa de conexão de rede falha.
+    # Garante que nenhum teste deste arquivo fala com Gemini ou com o provedor de imagens: o
+    # Gemini é um cliente falso, o gerador de imagens é falso, e qualquer tentativa de conexão
+    # de rede falha.
     import socket
 
     def proibido(*args: Any, **kwargs: Any) -> Any:
@@ -155,7 +157,7 @@ def nenhuma_chamada_ao_pdf_com_imagens(monkeypatch: pytest.MonkeyPatch) -> list[
     return chamadas
 
 
-# --- recurso desligado -------------------------------------------------------------------------
+# Recurso desligado
 
 
 async def test_desligado_nao_chama_o_gerador_nem_cria_prazo_ou_orquestrador(
@@ -200,7 +202,7 @@ async def test_desligado_com_marcador_literal_o_fluxo_nao_toca_no_texto(
     assert gerador.conceitos == [] and instancias.orquestradores == []
 
 
-# --- recurso ligado ----------------------------------------------------------------------------
+# Recurso ligado
 
 
 async def test_ligado_conceitos_validos_chegam_ao_orquestrador_e_ao_gerador(
@@ -301,7 +303,7 @@ async def test_ligado_sem_gerador_injetado_segue_so_com_texto(
     assert "sem gerador configurado" in caplog.text
 
 
-# --- prazo e orquestrador por material ---------------------------------------------------------
+# Prazo e orquestrador por material
 
 
 async def test_prazo_e_orquestrador_sao_novos_a_cada_material(
@@ -359,6 +361,7 @@ async def test_o_prazo_comeca_depois_do_gemini_e_nao_atravessa_materiais(
         5.0,
         imagens_geradas_habilitadas=True,
         gerador_de_imagens=_GeradorFalso(),
+        **LIMITES_LOCAIS_DE_PRODUCAO,
     )
     await _rodar(adaptador)
 
@@ -382,7 +385,7 @@ async def test_orcamento_esgotado_preserva_o_texto_e_nao_chama_o_gerador(
     assert "Primeiro parágrafo." in markdown_enviado_ao_pdf[0]
 
 
-# --- falhas de imagem --------------------------------------------------------------------------
+# Falhas de imagem
 
 
 async def test_falha_de_imagem_nao_elimina_o_texto_adaptado(
@@ -480,7 +483,7 @@ async def test_logs_nao_trazem_descricao_nem_texto_alternativo(
     assert "texto alternativo" not in caplog.text
 
 
-# --- cancelamento e erros de programação -------------------------------------------------------
+# Cancelamento e erros de programação
 
 
 async def test_cancelamento_externo_continua_propagando() -> None:
@@ -513,21 +516,25 @@ async def test_excecao_inesperada_na_geracao_nao_faz_perder_o_texto(
     assert _DESC1 not in caplog.text
 
 
-async def test_erro_do_pdf_com_imagens_nao_e_tratado_como_falha_de_imagem(
+async def test_erro_no_pdf_com_imagens_e_tambem_no_pdf_sem_imagens_continua_retornando_none(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # A falha SÓ da montagem com imagens agora é recuperada com um PDF só com o texto (ver
+    # test_gemini_fallback_pdf_sem_imagens.py). Aqui as DUAS montagens falham: o erro de PDF não é
+    # tratado como falha de imagem e segue como qualquer falha do PDF (None, sem PDF inválido).
     from infrastructure.pipeline.erros import ErroDePipeline
 
     def quebra(*args: Any, **kwargs: Any) -> bytes:
         raise ErroDePipeline("Falha ao gerar o PDF personalizado.")
 
     monkeypatch.setattr(gemini_adapter, "gerar_pdf_com_imagens_geradas", quebra)
+    monkeypatch.setattr(gemini_adapter, "gerar_pdf", quebra)
     adaptador, _ = _adaptador(_RESPOSTA_1, _GeradorFalso(), imagens_geradas_habilitadas=True)
 
-    assert await _rodar(adaptador) is None  # mesmo tratamento de qualquer falha do PDF
+    assert await _rodar(adaptador) is None
 
 
-# --- resposta vazia ou inválida ----------------------------------------------------------------
+# Resposta vazia ou inválida
 
 
 @pytest.mark.parametrize("texto", [None, "", "   ", "a" * 200_001])
@@ -560,7 +567,7 @@ async def test_resposta_so_com_marcadores_e_descartada_sem_chamar_o_gerador() ->
     assert gerador.conceitos == []
 
 
-# --- marcadores e âncoras fora do PDF e do resumo ----------------------------------------------
+# Marcadores e âncoras fora do PDF e do resumo
 
 
 async def test_nenhum_marcador_ou_ancora_chega_ao_pdf_nem_ao_resumo(
@@ -665,7 +672,7 @@ async def test_o_material_original_nao_escolhe_conceitos() -> None:
     assert gerador.conceitos == []
 
 
-# --- construtor --------------------------------------------------------------------------------
+# Construtor
 
 
 def test_construtor_sem_gerador_mantem_o_comportamento_anterior() -> None:
@@ -674,7 +681,7 @@ def test_construtor_sem_gerador_mantem_o_comportamento_anterior() -> None:
     assert adaptador._imagens_geradas_habilitadas is False
 
 
-# --- isolamento de falhas, cancelamento e provedores reais -------------------------------------
+# Isolamento de falhas, cancelamento e provedores reais
 
 
 async def test_desligado_o_pdf_com_imagens_nunca_e_usado(

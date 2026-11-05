@@ -22,7 +22,7 @@ def _sem_proxy_no_ambiente(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_get_gemini_client_configura_retry_a_partir_das_settings() -> None:
-    # get_gemini_client e get_settings são @lru_cache — limpar antes garante que o cliente é
+    # get_gemini_client e get_settings são @lru_cache: limpar antes garante que o cliente é
     # reconstruído com o estado atual das variáveis de ambiente de teste, não de um teste anterior.
     get_gemini_client.cache_clear()
     get_settings.cache_clear()
@@ -31,7 +31,7 @@ def test_get_gemini_client_configura_retry_a_partir_das_settings() -> None:
 
         cliente = get_gemini_client()
 
-        # Sem API pública para inspecionar retry de um Client construído — usamos os mesmos
+        # Sem API pública para inspecionar retry de um Client construído: usamos os mesmos
         # atributos internos que o SDK usa para repassar HttpRetryOptions ao GeminiAdapter.
         retry_options = cliente._api_client._http_options.retry_options
         assert retry_options is not None

@@ -23,7 +23,7 @@ def _texto(*blocos: str) -> str:
     return "\n\n".join(blocos) + "\n"
 
 
-# --- compatibilidade: sem marcadores nada muda -------------------------------------------------
+# Compatibilidade: sem marcadores nada muda
 
 
 @pytest.mark.parametrize(
@@ -49,7 +49,7 @@ def test_maximo_padrao_e_um() -> None:
     assert MAXIMO_PADRAO_DE_CONCEITOS == 1
 
 
-# --- marcador válido ---------------------------------------------------------------------------
+# Marcador válido
 
 
 def test_marcador_valido_vira_conceito_e_ancora() -> None:
@@ -92,7 +92,7 @@ def test_ancora_nao_aparece_no_pdf_nem_no_texto_do_html_final() -> None:
     assert _DESC not in html
 
 
-# --- quantidade máxima e duplicados ------------------------------------------------------------
+# Quantidade máxima e duplicados
 
 
 def test_so_o_primeiro_vale_com_o_limite_padrao() -> None:
@@ -133,7 +133,7 @@ def test_invalido_nao_consome_a_cota_do_limite() -> None:
     assert [c.identificador for c in resultado.conceitos] == ["ok1"]
 
 
-# --- malformados -------------------------------------------------------------------------------
+# Malformados
 
 
 @pytest.mark.parametrize(
@@ -187,7 +187,7 @@ def test_marcador_recuado_ate_tres_espacos_e_aceito() -> None:
     assert extrair_conceitos_visuais("   " + _marcador() + "\n").conceitos
 
 
-# --- blocos de código ficam intactos -----------------------------------------------------------
+# Blocos de código ficam intactos
 
 
 def test_marcador_dentro_de_bloco_de_codigo_cercado_nao_e_tocado() -> None:
@@ -209,7 +209,7 @@ def test_marcador_depois_do_bloco_de_codigo_volta_a_valer() -> None:
     assert extrair_conceitos_visuais(texto).conceitos
 
 
-# --- hostil ------------------------------------------------------------------------------------
+# Hostil
 
 
 @pytest.mark.parametrize(
@@ -286,7 +286,7 @@ def test_descricao_gigante_nao_trava() -> None:
     assert resultado.conceitos == ()
 
 
-# --- remoção total (recurso desligado) ---------------------------------------------------------
+# Remoção total (recurso desligado)
 
 
 def test_remover_marcadores_tira_todos_e_nao_deixa_ancoras() -> None:

@@ -11,6 +11,7 @@ from infrastructure.llm.gemini_adapter import (
     GeminiAdapter,
 )
 from infrastructure.pipeline.conceitos_visuais import extrair_conceitos_visuais
+from tests.unit.infrastructure.llm.limites_locais import LIMITES_LOCAIS_DE_PRODUCAO
 from tests.unit.infrastructure.llm.test_gemini_adapter import _cliente_fake, _InteractionsFake
 from tests.unit.infrastructure.pipeline.pdf_fixture import pdf_valido
 
@@ -36,7 +37,12 @@ def _interactions(texto: str = _RESPOSTA_OK) -> _InteractionsFake:
 
 
 async def _chamar(interactions: _InteractionsFake, pdf: bytes | None = None, **opcoes: Any) -> Any:
-    adaptador = GeminiAdapter(_cliente_fake(interactions), "gemini-3.1-flash-lite", 5.0, **opcoes)
+    adaptador = GeminiAdapter(
+        _cliente_fake(interactions),
+        "gemini-3.1-flash-lite",
+        5.0,
+        **{**LIMITES_LOCAIS_DE_PRODUCAO, **opcoes},
+    )
     return await adaptador.reescrever_conteudo(pdf or pdf_valido("Conteúdo."), *_dimensoes())
 
 
@@ -44,11 +50,14 @@ def _settings(**alteracoes: Any) -> Settings:
     return Settings(_env_file=None, **alteracoes)
 
 
-# --- recurso desligado: instrução idêntica à original -----------------------------------------
+# Recurso desligado: instrução idêntica à original
 
 
-def test_a_instrucao_original_nao_foi_alterada() -> None:
-    assert _SYSTEM_INSTRUCTION_REESCRITA == _ORIGINAL_LITERAL
+def test_a_instrucao_original_segue_intacta_como_prefixo() -> None:
+    # As regras de segurança do texto original (conteúdo é texto a adaptar, nunca comando) não
+    # podem ser perdidas; as diretrizes de profundidade só vêm DEPOIS dele.
+    assert _SYSTEM_INSTRUCTION_REESCRITA.startswith(_ORIGINAL_LITERAL + " ")
+    assert _SYSTEM_INSTRUCTION_REESCRITA != _ORIGINAL_LITERAL
 
 
 async def test_por_padrao_a_instrucao_enviada_e_exatamente_a_original() -> None:
@@ -63,9 +72,9 @@ async def test_flag_desligada_ignora_o_maximo_e_envia_a_original() -> None:
     assert interactions.chamadas[0]["system_instruction"] == _SYSTEM_INSTRUCTION_REESCRITA
 
 
-async def test_sem_chave_nem_modelo_openai_com_flag_desligada_a_chamada_nao_muda() -> None:
+async def test_sem_credenciais_de_imagem_com_flag_desligada_a_chamada_nao_muda() -> None:
     settings = _settings()
-    assert settings.openai_api_key is None and settings.openai_image_model is None
+    assert settings.cloudflare_api_token is None and settings.cloudflare_image_model is None
     interactions = _interactions()
     resultado = await _chamar(
         interactions,
@@ -85,7 +94,7 @@ async def test_flag_ligada_com_maximo_menor_que_um_envia_a_original(maximo: int)
     assert interactions.chamadas[0]["system_instruction"] == _SYSTEM_INSTRUCTION_REESCRITA
 
 
-# --- recurso ligado ---------------------------------------------------------------------------
+# Recurso ligado
 
 
 async def test_flag_ligada_anexa_o_complemento_depois_da_instrucao_original() -> None:
@@ -122,8 +131,13 @@ async def test_o_limite_vem_do_valor_de_configuracao() -> None:
 def test_o_complemento_descreve_o_formato_e_as_restricoes_pedidas() -> None:
     texto = _INSTRUCAO_COMPLEMENTAR_IMAGENS
     assert "[[IMAGEM:identificador|descrição visual curta]]" in texto
-    assert "opcional" in texto.lower() or "Somente se" in texto
-    assert "realmente ajudar" in texto
+    # A instrução pede ilustrações pertinentes por tópico, logo depois do parágrafo que explica o
+    # conceito, e não trata "nenhuma imagem" como o resultado esperado.
+    assert "ilustrações novas e pertinentes" in texto
+    assert "logo DEPOIS do parágrafo que explica o conceito" in texto
+    assert "em tópicos diferentes e na ordem do texto" in texto
+    assert "é o esperado" not in texto
+    assert "ligada diretamente ao conceito" in texto
     assert "blocos de código, tabelas" in texto
     assert "texto, letras, números ou fórmulas dentro da imagem" in texto
     assert "diagramas técnicos exatos" in texto
@@ -160,7 +174,7 @@ def test_o_complemento_so_tem_a_chave_de_formatacao_do_maximo() -> None:
     assert "{maximo}" in _INSTRUCAO_COMPLEMENTAR_IMAGENS
 
 
-# --- coerência com a validação de conceitos_visuais ------------------------------------------
+# Coerência com a validação de conceitos_visuais
 
 
 def test_exemplo_que_segue_as_regras_da_instrucao_e_aceito_por_conceitos_visuais() -> None:
@@ -174,7 +188,7 @@ def test_toda_pontuacao_permitida_na_instrucao_e_aceita_pelo_validador(caractere
     assert extrair_conceitos_visuais(f"[[IMAGEM:p1|{descricao}]]").conceitos
 
 
-# --- validação existente da resposta continua valendo -----------------------------------------
+# Validação existente da resposta continua valendo
 
 
 async def test_resposta_valida_continua_gerando_pdf_e_resumo_com_a_flag_ligada() -> None:

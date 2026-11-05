@@ -18,7 +18,7 @@ def png_sintetico(largura: int, altura: int, cor: tuple[int, int, int] = (200, 3
 
 def pdf_com_imagem(texto: str = "Conteúdo de teste.") -> bytes:
     # Pixmap gerado pelo próprio PyMuPDF: evita depender de uma lib de imagem externa
-    #  só para produzir um bitmap válido de teste.
+    #  só para produzir um bitmap válido de teste
     documento = pymupdf.open()
     pagina = documento.new_page()
     pagina.insert_text((72, 72), texto, fontsize=12)

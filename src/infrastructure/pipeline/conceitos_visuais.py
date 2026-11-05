@@ -4,14 +4,9 @@ from dataclasses import dataclass
 from application.ports.gerador_imagens import TAMANHO_MAXIMO_DA_DESCRICAO, ConceitoVisual
 from domain.shared.exceptions import EntradaInvalidaError
 
-# Formato do marcador, sempre em linha própria e fora de blocos de código:
-#
+# Marcador, sempre em linha própria e fora de bloco de código:
 #     [[IMAGEM:identificador|descrição visual curta]]
-#
-# O identificador segue o padrão de ConceitoVisual (ASCII, até 64 caracteres). A posição da linha
-# no texto É a âncora; o identificador da âncora é o do próprio conceito. A descrição não pode
-# conter colchetes nem "|". Qualquer coisa que comece como marcador e não siga o formato (ou não
-# passe nas validações abaixo) é removida do texto, sem interromper a geração do material.
+# A posição da linha é a âncora. Marcador malformado é removido sem interromper a geração.
 MAXIMO_PADRAO_DE_CONCEITOS = 1
 TAMANHO_MINIMO_DA_DESCRICAO = 10
 
@@ -50,10 +45,8 @@ def extrair_conceitos_visuais(
 ) -> ExtracaoDeConceitos:
     """Separa os conceitos visuais válidos do Markdown adaptado.
 
-    Cada marcador aceito vira uma âncora (`marcador_de_ancora`) e um `ConceitoVisual`; todos os
-    demais (inválidos, duplicados, acima de `maximo` ou mal formados) são removidos. Linhas fora
-    de marcadores, blocos de código cercados e blocos recuados ficam intactos. Se não houver
-    nada a tratar, o texto devolvido é idêntico ao recebido. Nunca lança exceção por conteúdo.
+    Cada marcador aceito vira uma âncora e um `ConceitoVisual`; os demais são removidos.
+    Sem nada a tratar, devolve o texto intacto. Nunca lança exceção por conteúdo.
     """
     conceitos: list[ConceitoVisual] = []
     vistos: set[str] = set()

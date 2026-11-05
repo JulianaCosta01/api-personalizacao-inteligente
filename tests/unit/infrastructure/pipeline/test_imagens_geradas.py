@@ -89,7 +89,7 @@ def _n_imagens_no_pdf(pdf: bytes) -> int:
         documento.close()
 
 
-# --- posicionamento ----------------------------------------------------------------------------
+# Posicionamento
 
 
 def test_png_e_jpeg_ficam_na_ancora_correta() -> None:
@@ -182,7 +182,7 @@ def test_ancora_recuada_dentro_de_lista_nao_deixa_token_e_nao_quebra() -> None:
     assert "item um" in html and "Depois." in html
 
 
-# --- segurança ---------------------------------------------------------------------------------
+# Segurança
 
 
 def test_texto_alternativo_com_html_e_escapado() -> None:
@@ -261,7 +261,7 @@ def test_tokens_mudam_a_cada_chamada() -> None:
     assert a != b
 
 
-# --- marcadores e âncoras fora do resultado final ----------------------------------------------
+# Marcadores e âncoras fora do resultado final
 
 
 def test_nenhum_marcador_ou_ancora_no_html_final() -> None:
@@ -297,7 +297,7 @@ def test_nenhum_marcador_ou_ancora_no_pdf_final() -> None:
     assert "Primeiro." in texto and "Último." in texto
 
 
-# --- PDF real ----------------------------------------------------------------------------------
+# PDF real
 
 
 def test_pdf_real_embute_png_e_jpeg_gerados() -> None:
@@ -385,7 +385,7 @@ def test_falha_do_weasyprint_vira_erro_de_pipeline_sem_vazar_detalhes() -> None:
     assert "segredo" not in str(erro.value)
 
 
-# --- comportamento anterior preservado ---------------------------------------------------------
+# Comportamento anterior preservado
 
 
 def test_assinaturas_publicas_anteriores_nao_mudaram() -> None:
@@ -453,7 +453,7 @@ def test_gerar_pdf_antigo_continua_entregando_o_mesmo_html_ao_weasyprint() -> No
     assert capturado["html"] == montar_documento_html(md)
 
 
-# --- contrato ImagensGeradasDoMaterial ---------------------------------------------------------
+# Contrato ImagensGeradasDoMaterial
 
 
 def test_contrato_aceita_menos_resultados_que_conceitos() -> None:

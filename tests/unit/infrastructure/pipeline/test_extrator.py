@@ -6,9 +6,15 @@ from unittest.mock import patch
 import pymupdf
 import pytest
 
+from core.config import get_settings
 from infrastructure.pipeline import extrator
 from infrastructure.pipeline.erros import ErroDePipeline
-from infrastructure.pipeline.extrator import ImagemExtraida, extrair_imagens, extrair_markdown
+from infrastructure.pipeline.extrator import (
+    ImagemExtraida,
+    contar_paginas,
+    extrair_imagens,
+    extrair_markdown,
+)
 
 from .pdf_fixture import pdf_com_imagem, pdf_valido
 
@@ -38,7 +44,7 @@ def test_rejeita_pdf_acima_do_tamanho_maximo() -> None:
 
 def test_respeita_o_limite_configurado_em_settings_nao_um_valor_fixo() -> None:
     # Settings é a única fonte de verdade: um PDF pequeno mas acima do limite configurado
-    # precisa ser rejeitado — prova que o teto não é uma constante fixa no módulo.
+    # precisa ser rejeitado: prova que o teto não é uma constante fixa no módulo.
     conteudo = pdf_valido("x") + b"0" * 2048
 
     with (
@@ -57,7 +63,9 @@ def test_aceita_pdf_dentro_do_limite_configurado_em_settings() -> None:
 
     with patch(
         "infrastructure.pipeline.extrator.get_settings",
-        return_value=SimpleNamespace(material_tamanho_maximo_bytes=1_000_000),
+        return_value=SimpleNamespace(
+            material_tamanho_maximo_bytes=1_000_000, pdf_paginas_maximas=100
+        ),
     ):
         markdown = extrair_markdown(conteudo)
 
@@ -104,7 +112,7 @@ def test_extrair_imagens_rejeita_pdf_acima_do_tamanho_maximo() -> None:
         extrair_imagens(conteudo_grande)
 
 
-# --- Transparência, bytes originais e cache de conversão ----------------------------------------
+# Transparência, bytes originais e cache de conversão
 # Os PDFs são montados aqui (e não em pdf_fixture) porque dependem de detalhes de /SMask e /Mask.
 
 
@@ -413,10 +421,8 @@ def test_mascara_de_imagem_de_1_bit_gera_aviso_de_cor_nao_preservada(
 
 
 def test_mascara_de_imagem_isolada_cai_no_bitmap_cinza_opaco_sem_reconstruir_a_cor() -> None:
-    # Documenta a limitação (não é o comportamento desejado): o stencil é pintado no original
-    # com a cor de preenchimento da página, mas aqui só sobra o bitmap cinza opaco do
-    # extract_image. Medido com Decode padrão: bit 1 (não pintado) -> preto, bit 0 (pintado)
-    # -> branco. Se a cor passar a ser reconstruída, este teste deve mudar junto.
+    # Trava a limitação conhecida: sem a cor de preenchimento da página, o stencil sai do
+    # extract_image em preto e branco. Se a cor passar a ser reconstruída, este teste muda junto.
     documento = pymupdf.open()
     pagina = documento.new_page()
     base = pymupdf.Pixmap(pymupdf.csGRAY, (0, 0, 8, 8), False)
@@ -439,3 +445,62 @@ def test_mascara_de_imagem_isolada_cai_no_bitmap_cinza_opaco_sem_reconstruir_a_c
     assert resultado.colorspace is not None
     assert resultado.colorspace.n == 1
     assert (resultado.pixel(0, 0)[0], resultado.pixel(7, 0)[0]) == (0, 255)
+
+
+# Limites de consumo (páginas e pixels)
+
+
+def _pdf_com_paginas(n: int) -> bytes:
+    documento = pymupdf.open()
+    for _ in range(n):
+        documento.new_page().insert_text((72, 72), "texto", fontsize=12)
+    conteudo = documento.tobytes()
+    documento.close()
+    return conteudo
+
+
+def _com_limites(monkeypatch: pytest.MonkeyPatch, **campos: int) -> None:
+    configuracao = get_settings().model_copy(update=campos)
+    monkeypatch.setattr(extrator, "get_settings", lambda: configuracao)
+
+
+def test_pdf_com_paginas_acima_do_limite_e_recusado_na_extracao_de_texto(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _com_limites(monkeypatch, pdf_paginas_maximas=3)
+    with pytest.raises(ErroDePipeline, match="limite de 3 páginas"):
+        extrair_markdown(_pdf_com_paginas(4))
+
+
+def test_pdf_com_paginas_acima_do_limite_e_recusado_na_extracao_de_imagens(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _com_limites(monkeypatch, pdf_paginas_maximas=3)
+    with pytest.raises(ErroDePipeline, match="limite de 3 páginas"):
+        extrair_imagens(_pdf_com_paginas(4))
+
+
+def test_pdf_exatamente_no_limite_de_paginas_e_aceito(monkeypatch: pytest.MonkeyPatch) -> None:
+    _com_limites(monkeypatch, pdf_paginas_maximas=3)
+    assert "texto" in extrair_markdown(_pdf_com_paginas(3))
+
+
+def test_limite_padrao_de_paginas_e_100() -> None:
+    assert get_settings().pdf_paginas_maximas == 100
+    assert contar_paginas(_pdf_com_paginas(2)) == 2
+    assert contar_paginas(b"%PDF-1.7\nnao abre") is None
+
+
+def test_imagem_acima_do_limite_de_pixels_e_descartada_sem_derrubar_o_material(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    conteudo = pdf_com_imagem()  # imagem de 8x8 = 64 pixels
+    _com_limites(monkeypatch, pdf_pixels_maximos_por_imagem=63)
+    with caplog.at_level("WARNING"):
+        assert extrair_imagens(conteudo) == []
+    assert "acima do limite de pixels" in caplog.text
+
+
+def test_imagem_no_limite_de_pixels_e_extraida(monkeypatch: pytest.MonkeyPatch) -> None:
+    _com_limites(monkeypatch, pdf_pixels_maximos_por_imagem=64)
+    assert len(extrair_imagens(pdf_com_imagem())) == 1

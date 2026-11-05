@@ -80,7 +80,7 @@ def _bloqueia_conexoes_de_rede() -> Iterator[None]:
         yield
 
 
-# --- Estrutura e identificação ------------------------------------------------------------
+# Estrutura e identificação
 
 
 def test_capa_e_a_primeira_pagina_e_traz_a_identificacao_institucional() -> None:
@@ -134,7 +134,7 @@ def test_pdf_com_capa_declara_titulo_nos_metadados() -> None:
     assert _titulo_do_pdf(pdf) == "Redes de Computadores"
 
 
-# --- Título e subtítulo dinâmicos ---------------------------------------------------------
+# Título e subtítulo dinâmicos
 
 
 def test_sem_titulo_usa_o_fallback_seguro() -> None:
@@ -168,7 +168,7 @@ def test_titulo_muito_longo_e_truncado_e_a_capa_continua_em_uma_pagina() -> None
     assert titulo.endswith("…")
     paginas = _paginas(pdf)
     assert len(paginas) == 2
-    assert "CIÊNCIA DA COMPUTAÇÃO E INTELIGÊNCIA ARTIFICIAL" in paginas[0]
+    assert "CIÊNCIA DA COMPUTAÇÃO E INTELIGÊNCIA ARTIFICIAL" not in paginas[0]
     assert "CIÊNCIA DA COMPUTAÇÃO E INTELIGÊNCIA ARTIFICIAL" not in paginas[1]
 
 
@@ -266,7 +266,7 @@ def test_subtitulo_pula_blocos_nao_textuais_e_usa_o_primeiro_paragrafo_adequado(
     assert subtitulo == _PARAGRAFO_LONGO
 
 
-# --- Segurança ----------------------------------------------------------------------------
+# Segurança
 
 
 def test_texto_dinamico_da_capa_e_escapado_e_nao_vira_marcacao() -> None:
@@ -303,7 +303,7 @@ def test_titulo_com_script_gera_pdf_sem_executar_nem_propagar_marcacao() -> None
     assert pdf.startswith(b"%PDF-")
 
 
-# --- Preservação do conteúdo e das imagens ------------------------------------------------
+# Preservação do conteúdo e das imagens
 
 
 def test_corpo_com_capa_tem_o_mesmo_texto_que_sem_capa() -> None:
@@ -374,7 +374,7 @@ def test_nao_vaza_conteudo_pessoal_na_capa_por_padrao() -> None:
     assert "perfil" not in capa
 
 
-# --- Logo oficial da UFMA -----------------------------------------------------------------
+# Logo oficial da UFMA
 
 # SHA-256 do arquivo da logo versionado no repositório (recorte circular do arquivo enviado pelo
 # projeto). Se a logo for substituída (por exemplo, pelo arquivo vetorial oficial), atualizar aqui
@@ -452,7 +452,7 @@ def test_arquivo_da_logo_que_nao_e_png_e_ignorado(_sem_cache_da_logo: None, tmp_
     assert _colocacoes_por_pagina(pdf)[0] == 0
 
 
-# --- Identidade visual no corpo -----------------------------------------------------------
+# Identidade visual no corpo
 
 
 def _rgb(cor: int) -> tuple[int, int, int]:
@@ -529,7 +529,7 @@ def test_corpo_nao_usa_mais_a_paleta_azul_anterior() -> None:
     assert _hex_para_rgb("#e4ebf2") not in todas
 
 
-def test_cabecalho_institucional_aparece_nas_paginas_do_corpo_e_nao_na_capa() -> None:
+def test_cabecalho_institucional_nao_aparece_em_nenhuma_pagina() -> None:
     pdf = gerar_pdf("# Título\n\nCorpo.")
 
     documento = pymupdf.open(stream=pdf, filetype="pdf")
@@ -542,10 +542,23 @@ def test_cabecalho_institucional_aparece_nas_paginas_do_corpo_e_nao_na_capa() ->
                 if palavra[1] < 20 * _MM_EM_PT
             )
 
-        assert no_cabecalho(1)
+        assert not no_cabecalho(1)
         assert not no_cabecalho(0)
     finally:
         documento.close()
+
+
+def test_capa_nao_tem_rodape_institucional_repetido() -> None:
+    pdf = gerar_pdf("# Título\n\nCorpo.")
+
+    capa = _paginas(pdf)[0]
+    assert "UFMA · CCIA" not in capa
+    assert "capa-rodape" not in gerador_pdf._FOLHA_DE_ESTILO_CAPA
+
+
+def test_texto_do_corpo_e_justificado_e_o_da_capa_nao() -> None:
+    assert "text-align: justify" in gerador_pdf._FOLHA_DE_ESTILO
+    assert ".capa p { text-align: left" in gerador_pdf._FOLHA_DE_ESTILO_CAPA
 
 
 def _luminancia(cor: tuple[int, int, int]) -> float:

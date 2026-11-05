@@ -11,6 +11,7 @@ from domain.perfil.dimensoes import Compreensao, Entrada, EstiloProcessamento, P
 from infrastructure.llm import gemini_adapter
 from infrastructure.llm.gemini_adapter import _INSTRUCAO_COMPLEMENTAR_IMAGENS, GeminiAdapter
 from infrastructure.pipeline.gerador_pdf import gerar_pdf
+from tests.unit.infrastructure.llm.limites_locais import LIMITES_LOCAIS_DE_PRODUCAO
 from tests.unit.infrastructure.llm.test_gemini_adapter import _cliente_fake, _InteractionsFake
 from tests.unit.infrastructure.pipeline.pdf_fixture import pdf_valido
 
@@ -31,7 +32,12 @@ def _dimensoes() -> tuple[EstiloProcessamento, Percepcao, Entrada, Compreensao]:
 
 def _adaptador(texto: str | None, **opcoes: Any) -> tuple[GeminiAdapter, _InteractionsFake]:
     interactions = _InteractionsFake(resposta=SimpleNamespace(output_text=texto))
-    adaptador = GeminiAdapter(_cliente_fake(interactions), "gemini-3.1-flash-lite", 5.0, **opcoes)
+    adaptador = GeminiAdapter(
+        _cliente_fake(interactions),
+        "gemini-3.1-flash-lite",
+        5.0,
+        **{**LIMITES_LOCAIS_DE_PRODUCAO, **opcoes},
+    )
     return adaptador, interactions
 
 
@@ -60,7 +66,7 @@ def _quebrada(*_: Any, **__: Any) -> Any:
     raise RuntimeError(f"erro com {_DESC}")
 
 
-# --- recurso desligado -------------------------------------------------------------------------
+# Recurso desligado
 
 
 async def test_desligado_sem_marcadores_a_saida_e_equivalente_a_anterior() -> None:
@@ -97,7 +103,7 @@ async def test_desligado_o_conteudo_original_segue_sem_alteracao_para_o_modelo()
     assert "Texto comum do original." in interactions.chamadas[0]["input"]
 
 
-# --- recurso ligado ----------------------------------------------------------------------------
+# Recurso ligado
 
 
 async def test_ligado_marcador_valido_vira_conceito_e_some_do_texto_renderizado(
@@ -199,7 +205,7 @@ async def test_ligado_respeita_o_limite_padrao_de_uma_imagem(
     assert "Conceitos visuais identificados: 1." in caplog.text
 
 
-# --- conteúdo original e âncoras forjadas ------------------------------------------------------
+# Conteúdo original e âncoras forjadas
 
 
 async def test_ligado_marcador_e_ancora_do_original_nao_chegam_ao_modelo() -> None:
@@ -242,7 +248,7 @@ async def test_marcador_dentro_de_codigo_na_resposta_permanece_como_texto(
     assert _MARCADOR in markdown_enviado_ao_pdf[0]
 
 
-# --- resumo ------------------------------------------------------------------------------------
+# Resumo
 
 
 async def test_resumo_nao_contem_marcador_nem_ancora_com_o_recurso_ligado() -> None:
@@ -267,7 +273,7 @@ async def test_resposta_so_com_marcadores_segue_o_fluxo_anterior_com_o_recurso_d
     assert await adaptador.reescrever_conteudo(pdf_valido("Origem."), *_dimensoes()) is not None
 
 
-# --- eco da instrução complementar -------------------------------------------------------------
+# Eco da instrução complementar
 
 
 async def test_eco_completo_do_complemento_e_rejeitado_com_o_recurso_ligado() -> None:
@@ -293,7 +299,7 @@ async def test_texto_comum_com_marcador_nao_e_confundido_com_eco() -> None:
     assert await adaptador.reescrever_conteudo(pdf_valido("Origem."), *_dimensoes()) is not None
 
 
-# --- falha no tratamento de conceitos ---------------------------------------------------------
+# Falha no tratamento de conceitos
 
 
 async def test_falha_ao_extrair_conceitos_nao_perde_o_texto_adaptado(
@@ -342,7 +348,7 @@ async def test_com_o_recurso_desligado_nenhuma_funcao_de_marcadores_e_chamada(
     assert markdown_enviado_ao_pdf == [_SEM_MARCADOR]
 
 
-# --- validação existente continua valendo -----------------------------------------------------
+# Validação existente continua valendo
 
 
 @pytest.mark.parametrize("ligado", [False, True])

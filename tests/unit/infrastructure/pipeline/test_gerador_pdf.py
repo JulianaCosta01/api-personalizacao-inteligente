@@ -41,7 +41,7 @@ def test_gera_pdf_com_tabela_e_codigo() -> None:
 
 
 def test_gera_pdf_com_titulos_e_formulas_normalizadas() -> None:
-    # Fórmulas já chegam normalizadas para Unicode (infrastructure.pipeline.normalizador) —
+    # Fórmulas já chegam normalizadas para Unicode (infrastructure.pipeline.normalizador);
     # gerar_pdf só precisa continuar aceitando texto comum, sem referência a recurso externo.
     conteudo = "## Lógica proposicional\n\nSe A → B e A, então B (∴ modus ponens).\n"
 
@@ -65,7 +65,7 @@ def test_referencia_http_externa_e_bloqueada_sem_acessar_a_rede() -> None:
     with _bloqueia_conexoes_de_rede():
         pdf = gerar_pdf("Texto adaptado ![imagem](http://exemplo-externo.test/x.png) depois.")
 
-    # PDF continua sendo gerado normalmente — a imagem bloqueada só não aparece.
+    # PDF continua sendo gerado normalmente: a imagem bloqueada só não aparece.
     assert pdf.startswith(b"%PDF-")
 
 
@@ -92,7 +92,7 @@ def test_referencia_a_metadata_endpoint_e_bloqueada_sem_acessar_a_rede() -> None
 
 def test_bloqueio_de_recurso_externo_nao_levanta_excecao_nem_vaza_detalhes() -> None:
     # O bloqueio é tratado internamente pelo WeasyPrint (recurso ausente, não
-    # erro fatal) — gerar_pdf não deve propagar exceção nenhuma para esse caso.
+    # erro fatal): gerar_pdf não deve propagar exceção nenhuma para esse caso.
     with _bloqueia_conexoes_de_rede():
         pdf = gerar_pdf("Texto ![imagem](http://exemplo-externo.test/segredo?token=abc) fim.")
 
@@ -102,12 +102,8 @@ def test_bloqueio_de_recurso_externo_nao_levanta_excecao_nem_vaza_detalhes() -> 
 def _colocacoes_das_imagens(
     conteudo_pdf: bytes,
 ) -> list[tuple[int, tuple[float, float, float, float]]]:
-    # Colocações (get_image_info), não referências de recurso: get_images lista os recursos de
-    # cada página e superconta em PDFs de várias páginas (medido: 225 referências para 15
-    # imagens colocadas) e subconta bytes idênticos reaproveitados.
-    # Só entram colocações cuja bbox intersecta o retângulo da página. Isso NÃO garante
-    # visibilidade efetiva: cobertura por outros elementos, recorte (clip) e transparência
-    # total não são avaliados.
+    # Conta colocações (get_image_info), não recursos: get_images superconta em PDFs de várias
+    # páginas. Interseção com a página não garante visibilidade (clip e transparência à parte).
     documento = pymupdf.open(stream=conteudo_pdf, filetype="pdf")
     try:
         colocacoes: list[tuple[int, tuple[float, float, float, float]]] = []
@@ -127,8 +123,7 @@ def _contar_imagens(conteudo_pdf: bytes) -> int:
 
 
 def test_gera_pdf_sem_imagens_quando_nenhuma_e_informada() -> None:
-    # Comportamento anterior à Etapa 2 precisa continuar idêntico quando o
-    # chamador não passa imagens (parâmetro tem valor padrão vazio).
+    # Sem imagens informadas, o comportamento tem que ser o mesmo de antes.
     pdf = gerar_pdf("Texto adaptado sem imagens.")
 
     assert pdf.startswith(b"%PDF-")
@@ -155,7 +150,7 @@ def test_preserva_multiplas_imagens_extraidas_do_pdf_original() -> None:
 
 def test_conteudo_visual_da_imagem_e_preservado_na_reconstrucao() -> None:
     # Além de "existe uma imagem no PDF final", confirma que o pixel embutido
-    # ainda corresponde à cor original (vermelho) — não é um placeholder vazio.
+    # ainda corresponde à cor original (vermelho), não é um placeholder vazio.
     imagens = extrair_imagens(pdf_com_imagem())
 
     pdf = gerar_pdf("Texto adaptado.", imagens)
@@ -203,7 +198,7 @@ def test_geracao_com_imagens_reais_nao_abre_conexao_de_rede() -> None:
     assert _contar_imagens(pdf) == len(imagens) == 1
 
 
-# --- Apresentação visual (folha de estilo) -----------------------------------------------------
+# Apresentação visual (folha de estilo)
 # Margens definidas em @page (22 mm laterais, 25 mm superior/inferior). As verificações abaixo
 # leem posições reais no PDF gerado, em vez de apenas confirmar que o CSS contém uma regra.
 
@@ -371,7 +366,7 @@ def test_imagem_pequena_mantem_o_tamanho_original() -> None:
     assert abs((y1 - y0) - 30.0) < _TOLERANCIA
 
 
-# --- Contagem, repetição e ordem das colocações -------------------------------------------------
+# Contagem, repetição e ordem das colocações
 
 
 def test_contagem_por_colocacao_em_pdf_de_varias_paginas() -> None:
@@ -420,10 +415,8 @@ def test_ordem_das_colocacoes_segue_a_ordem_das_imagens_recebidas() -> None:
 
 
 def test_ordem_das_colocacoes_em_varias_paginas_segue_a_ordem_das_imagens_recebidas() -> None:
-    # 600 px de altura = 450 pt: duas não cabem na mesma página, então cada imagem ocupa uma.
-    # Ordenar só por y0 misturaria páginas; a ordem correta é (página, y0). Larguras distintas
-    # (100/200/300 px = 75/150/225 pt) identificam cada imagem; imagens de mesma largura não
-    # seriam distinguíveis por este teste.
+    # 450 pt de altura: uma imagem por página, então a ordem certa é (página, y0). As larguras
+    # distintas identificam cada imagem.
     imagens = [
         ImagemExtraida(0, 0, png_sintetico(100, 600), "png"),
         ImagemExtraida(0, 1, png_sintetico(200, 600), "png"),
@@ -439,7 +432,7 @@ def test_ordem_das_colocacoes_em_varias_paginas_segue_a_ordem_das_imagens_recebi
     assert larguras == [75, 150, 225]
 
 
-# --- Imagens descartadas e conversão para PNG ---------------------------------------------------
+# Imagens descartadas e conversão para PNG
 # Os testes leem o PDF gerado (colocações e cor de cada imagem), não só as mensagens de log.
 
 _VERMELHO = (200, 30, 30)
@@ -477,9 +470,7 @@ def _pnm(cor: tuple[int, int, int], indice: int = 0) -> ImagemExtraida:
     return ImagemExtraida(0, indice, pixmap.tobytes("pnm"), "pnm")
 
 
-# Amostras JPEG 2000 (8x8, sem perdas) embutidas para os testes não dependerem de uma biblioteca
-# de imagem. Foram geradas uma única vez com Pillow 12.3.0 e conferidas por dois decodificadores
-# independentes: Pillow (modo RGB/CMYK) e PyMuPDF (DeviceRGB e DeviceCMYK, sem alfa).
+# Amostras JPEG 2000 8x8 embutidas, geradas uma vez com Pillow e conferidas também no PyMuPDF.
 # RGB uniforme (30, 160, 60) e CMYK uniforme (0, 255, 255, 0).
 _JPX_RGB_8X8_VERDE_BASE64 = (
     "AAAADGpQICANCocKAAAAFGZ0eXBqcDIgAAAAAGpwMiAAAAAtanAyaAAAABZpaGRyAAAACAAAAAgA"

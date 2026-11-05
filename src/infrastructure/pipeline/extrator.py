@@ -11,6 +11,25 @@ from infrastructure.pipeline.erros import ErroDePipeline
 logger = logging.getLogger(__name__)
 
 
+def contar_paginas(conteudo_pdf: bytes) -> int | None:
+    """Número de páginas do PDF, ou None se ele não puder ser aberto (a falha de abertura é
+    tratada por quem de fato processa o arquivo, não aqui)."""
+    try:
+        documento = pymupdf.open(stream=conteudo_pdf, filetype="pdf")
+    except Exception:
+        return None
+    try:
+        return int(documento.page_count)
+    finally:
+        documento.close()
+
+
+def _exigir_limite_de_paginas(documento: pymupdf.Document) -> None:
+    limite = get_settings().pdf_paginas_maximas
+    if documento.page_count > limite:
+        raise ErroDePipeline(f"O PDF excede o limite de {limite} páginas aceito pelo pipeline.")
+
+
 def extrair_markdown(conteudo_pdf: bytes) -> str:
     # Extensão/Content-Type declarados no cadastro não garantem que os bytes do Storage
     # ainda são um PDF válido (a assinatura é checada de novo aqui)
@@ -27,7 +46,10 @@ def extrair_markdown(conteudo_pdf: bytes) -> str:
         raise ErroDePipeline("Falha ao abrir o PDF para extração.") from exc
 
     try:
+        _exigir_limite_de_paginas(documento)
         markdown = pymupdf4llm.to_markdown(documento)
+    except ErroDePipeline:
+        raise
     except Exception as exc:
         raise ErroDePipeline("Falha ao extrair o conteúdo do PDF.") from exc
     finally:
@@ -85,10 +107,8 @@ def _extrair_imagem_com_transparencia(
     conteudo: bytes = imagem_base["image"]
     extensao: str = imagem_base["ext"]
 
-    # Limitação conhecida, sem reconstrução: um ImageMask isolado é pintado com a cor de
-    # preenchimento do conteúdo da página, que não é lida aqui. O fallback é o bitmap de
-    # extract_image: cinza opaco que, nos casos medidos (Decode padrão e [1 0]), sai com as
-    # regiões pintadas em branco e as não pintadas em preto, e não com a cor original.
+    # Limitação conhecida: ImageMask isolado sai em preto e branco (fallback de extract_image),
+    # porque a cor de preenchimento da página não é lida aqui.
     if _eh_mascara_de_imagem(documento, xref):
         logger.warning(
             "Imagem é uma máscara de 1 bit (stencil); a cor de preenchimento do original não é "
@@ -128,6 +148,8 @@ def extrair_imagens(conteudo_pdf: bytes) -> list[ImagemExtraida]:
         raise ErroDePipeline("Falha ao abrir o PDF para extração.") from exc
 
     try:
+        _exigir_limite_de_paginas(documento)
+        limite_de_pixels = get_settings().pdf_pixels_maximos_por_imagem
         imagens: list[ImagemExtraida] = []
         # O cache evita converter de novo um xref reaproveitado; cada colocação continua
         # gerando a sua própria entrada.
@@ -136,6 +158,15 @@ def extrair_imagens(conteudo_pdf: bytes) -> list[ImagemExtraida]:
             pagina = documento[numero_pagina]
             for indice, referencia in enumerate(pagina.get_images(full=True)):
                 xref = referencia[0]
+                # Largura e altura declaradas no PDF (campos 2 e 3), lidas sem decodificar a
+                # imagem: uma imagem acima do limite é descartada antes de qualquer conversão.
+                if int(referencia[2]) * int(referencia[3]) > limite_de_pixels:
+                    logger.warning(
+                        "Imagem descartada: acima do limite de pixels (página=%d, xref=%d).",
+                        numero_pagina + 1,
+                        xref,
+                    )
+                    continue
                 if xref not in convertidas:
                     convertidas[xref] = _extrair_imagem_com_transparencia(
                         documento, xref, referencia[1], numero_pagina
@@ -150,6 +181,8 @@ def extrair_imagens(conteudo_pdf: bytes) -> list[ImagemExtraida]:
                         xref=xref,
                     )
                 )
+    except ErroDePipeline:
+        raise
     except Exception as exc:
         raise ErroDePipeline("Falha ao extrair imagens do PDF.") from exc
     finally:

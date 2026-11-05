@@ -27,10 +27,8 @@ _url_fetcher_sem_rede = URLFetcher(allowed_protocols=["data"])
 # qualquer coisa fora daqui é descartada em vez de embutida sem verificação.
 _EXTENSOES_DE_IMAGEM_PERMITIDAS = {"png", "jpeg", "jpg", "gif", "bmp", "tiff", "webp"}
 
-# Formatos fora da lista acima que o PyMuPDF decodifica e regrava como PNG, validados
-# experimentalmente (JPX em RGB, RGBA com alfa e cinza; PNM em RGB e cinza). Qualquer outro
-# formato (jxr, n/a...) continua descartado, agora com aviso, por não estar validado. JPX/PNM em
-# CMYK não foram validados: se a regravação falhar, a imagem é descartada.
+# Formatos que o PyMuPDF regrava como PNG, validados na prática (JPX e PNM em RGB/cinza,
+# JPX com alfa). O resto é descartado com aviso; CMYK não foi validado.
 _EXTENSOES_CONVERTIVEIS_PARA_PNG = frozenset({"jpx", "pnm"})
 
 _TAMANHO_MAXIMO_DO_ROTULO_DE_FORMATO = 10
@@ -48,10 +46,8 @@ def _rotulo_do_formato(extensao: str) -> str:
     return "invalido"
 
 
-# Paleta PROVISÓRIA, inspirada no mockup de capa aprovado. Não são cores oficiais certificadas
-# da UFMA nem do CCIA: trocar aqui quando houver manual de identidade visual. Dourado e turquesa
-# (#E8B22E, #1E8F8A) não têm contraste suficiente para texto sobre fundo claro; ficam só em
-# filetes, marcadores e formas. Texto em turquesa usa a variante escurecida.
+# Paleta provisória, até existir manual de identidade visual da UFMA. Dourado e turquesa não
+# têm contraste para texto em fundo claro, então ficam só em filetes e formas.
 _COR_VINHO = "#6B1230"
 _COR_DOURADO = "#E8B22E"
 _COR_TURQUESA = "#1E8F8A"
@@ -69,12 +65,6 @@ _FOLHA_DE_ESTILO = Template(
 @page {
   size: A4;
   margin: 25mm 22mm 25mm 22mm;
-  @top-left {
-    content: "UFMA · CCIA";
-    font-family: "DejaVu Sans", sans-serif;
-    font-size: 7.5pt;
-    color: $vinho;
-  }
   @bottom-center {
     content: "Página " counter(page) " de " counter(pages);
     font-family: "DejaVu Sans", sans-serif;
@@ -99,10 +89,10 @@ h1 { font-size: 20pt; margin: 0 0 12pt; padding-bottom: 6pt; border-bottom: 2pt 
 h2 { font-size: 15pt; margin: 20pt 0 8pt; padding-left: 8pt; border-left: 3.5pt solid $dourado; }
 h3 { font-size: 12.5pt; margin: 16pt 0 6pt; }
 h4 { font-size: 11pt; margin: 12pt 0 4pt; color: $turquesa_texto; }
-p { margin: 0 0 8pt; orphans: 3; widows: 3; }
+p { margin: 0 0 8pt; orphans: 3; widows: 3; text-align: justify; hyphens: auto; }
 a { color: $vinho; }
 ul, ol { margin: 0 0 8pt; padding-left: 20pt; }
-li { margin-bottom: 3pt; }
+li { margin-bottom: 3pt; text-align: justify; hyphens: auto; }
 li::marker { color: $turquesa; }
 blockquote {
   margin: 10pt 0;
@@ -152,6 +142,27 @@ img {
   height: auto;
   margin: 10pt auto;
   break-inside: avoid;
+}
+/* Ilustração gerada por IA: figura de tamanho contido, junto ao parágrafo que a explica (nunca
+   uma página só de imagem) e com legenda. */
+figure.imagem-gerada {
+  margin: 12pt auto;
+  text-align: center;
+  break-inside: avoid;
+  break-before: avoid;
+}
+figure.imagem-gerada img {
+  max-width: 105mm;
+  max-height: 85mm;
+  width: auto;
+  height: auto;
+  margin: 0 auto 4pt;
+}
+figure.imagem-gerada figcaption {
+  font-size: 8.5pt;
+  line-height: 1.35;
+  font-style: italic;
+  color: $rodape;
 }
 hr { border: 0; border-top: 1pt solid $dourado; margin: 14pt 0; }
 """
@@ -217,7 +228,7 @@ def _construir_secao_de_imagens(imagens: Sequence[ImagemExtraida]) -> str:
     return "".join(blocos)
 
 
-# --- Capa institucional ---------------------------------------------------------------------
+# Capa institucional
 _TITULO_PADRAO = "Material Didático"
 _TAMANHO_MAXIMO_DO_TITULO = 120
 _TAMANHO_MINIMO_DO_SUBTITULO = 40
@@ -242,10 +253,8 @@ _PADRAO_BLOCO_ESPECIAL = re.compile(
 )
 _PADRAO_SUBLINHADO_SETEXT = re.compile(r"^\s*(=+|-{3,})\s*$")
 
-# Logo oficial da UFMA, fornecida pelo projeto. O arquivo foi recortado ao círculo (604x604 px) a
-# partir da imagem enviada, sem redimensionar, recolorir nem redesenhar, e com o fundo externo ao
-# círculo transparente. Entra como imagem rasterizada (data URI); é a única colocação de imagem da
-# capa. Se o arquivo faltar ou não for PNG, a capa sai só com a identificação textual.
+# Logo oficial da UFMA, só recortada ao círculo (fundo transparente). Sem o arquivo, a capa
+# sai só com a identificação textual.
 _CAMINHO_DA_LOGO_UFMA = Path(__file__).parent / "assets" / "ufma_logo.png"
 _ASSINATURA_PNG = b"\x89PNG\r\n\x1a\n"
 _TAMANHO_MAXIMO_DA_LOGO_EM_BYTES = 2 * 1024 * 1024
@@ -365,12 +374,7 @@ _FOLHA_DE_ESTILO_CAPA = Template(
 .capa .capa-subtitulo {
   margin-top: 8mm; font-size: 11pt; line-height: 1.5; overflow-wrap: anywhere;
 }
-.capa-rodape {
-  position: absolute; left: 22mm; bottom: 17mm; width: 120mm;
-  padding-left: 5mm; border-left: 0.9mm solid $dourado;
-}
-.capa-rodape .linha1 { font-size: 8pt; font-weight: bold; letter-spacing: 1.6pt; color: $vinho; }
-.capa-rodape .linha2 { font-size: 6.5pt; letter-spacing: 0.8pt; color: $texto; }
+.capa p { text-align: left; hyphens: manual; }
 """
 ).substitute(vinho=_COR_VINHO, dourado=_COR_DOURADO, fundo=_COR_CREME, texto=_COR_GRAFITE)
 
@@ -460,10 +464,8 @@ def _extrair_subtitulo(linhas: Sequence[str], inicio: int) -> str | None:
 
 
 def _tamanho_do_titulo(titulo: str) -> float:
-    # Corpo da fonte do título, em pt. Dois limites: o comprimento total (menos linhas para
-    # títulos curtos) e a maior palavra, que precisa caber na largura da coluna de texto da capa
-    # (106 mm ≈ 300 pt, com ~0,75 em por caractere em DejaVu Sans Bold, medido com folga) para
-    # não ser quebrada no meio. Palavras ligadas por hífen ou barra podem quebrar ali.
+    # Corpo do título em pt, limitado pelo tamanho do título e pela maior palavra, que precisa
+    # caber na coluna da capa (~300 pt) sem quebrar no meio.
     total = len(titulo)
     if total <= _LIMITE_TITULO_CURTO:
         por_comprimento = 40.0
@@ -514,10 +516,6 @@ def _renderizar_capa(titulo: str, subtitulo: str | None) -> str:
         f"{html.escape(titulo)}</p>"
         f"{bloco_subtitulo}"
         "</div>"
-        '<div class="capa-rodape">'
-        '<p class="linha1">UFMA · CCIA</p>'
-        '<p class="linha2">CIÊNCIA DA COMPUTAÇÃO E INTELIGÊNCIA ARTIFICIAL</p>'
-        "</div>"
         "</section>"
     )
 
@@ -536,11 +534,8 @@ def montar_documento_html(
     *,
     incluir_capa: bool = True,
 ) -> str:
-    # ATENÇÃO: o HTML devolvido NÃO é sanitizado nem serve ao navegador. O conversor Markdown
-    # deixa passar HTML bruto (script, iframe, style, handlers on*, URLs javascript: e externas);
-    # no PDF isso é inofensivo porque o WeasyPrint não executa JS e o fetcher só aceita "data".
-    # Antes de servir este HTML a um navegador é obrigatório sanitizá-lo por lista de permissão.
-    # Sem capa devolve só o fragmento do corpo; com capa, um documento completo.
+    # ATENÇÃO: este HTML não é sanitizado. No PDF é seguro (WeasyPrint não roda JS e só aceita
+    # data:), mas servir a um navegador exige sanitizar antes. Sem capa, devolve só o corpo.
     return _montar_documento(
         conteudo_markdown, imagens, incluir_capa=incluir_capa, texto_da_capa=conteudo_markdown
     )
@@ -573,12 +568,9 @@ def montar_documento_html_com_imagens_geradas(
     *,
     incluir_capa: bool = True,
 ) -> str:
-    # Mesma ressalva de `montar_documento_html`: o HTML NÃO é sanitizado nem serve ao navegador.
-    # Cada âncora válida do Markdown é trocada pela imagem gerada do seu conceito, na posição
-    # original; âncoras e marcadores sem imagem correspondente somem do documento e o texto fica.
-    # Sem nenhuma imagem a posicionar o resultado é o de `montar_documento_html` sobre o texto
-    # limpo. A imagem (bytes validados + texto alternativo escapado) entra só depois da conversão
-    # do Markdown, montada por `imagens_geradas.py`: nada dela passa pelo conversor.
+    # Mesma ressalva de montar_documento_html: HTML não sanitizado. Cada âncora vira a imagem
+    # do seu conceito e âncora sem imagem some. A imagem entra depois da conversão do Markdown,
+    # então nada dela passa pelo conversor.
     posicionamento = posicionar_imagens(conteudo_markdown, imagens_geradas)
     return _montar_documento(
         posicionamento.markdown,

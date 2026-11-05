@@ -31,15 +31,10 @@ def _rejeitar(mensagem: str) -> EntradaInvalidaError:
 
 @dataclass(frozen=True)
 class ImagensGeradasDoMaterial:
-    """O que o gerador de PDF recebe para posicionar imagens geradas por IA.
+    """O que o gerador de PDF recebe para posicionar as imagens geradas.
 
-    `conceitos` são os conceitos identificados no texto (únicos, cada um com a sua âncora) e
-    `resultados` o que o orquestrador devolveu para eles, na mesma ordem. `ImagemGerada` não
-    carrega identificador: o vínculo é por posição (resultados[i] ↔ conceitos[i]), o que o
-    `GeradorDeImagensDoMaterial` garante. Pode haver menos resultados que conceitos (os que
-    ficaram sem resultado simplesmente não ganham imagem); mais, não. Uma falha precisa
-    apontar para o conceito da própria posição. A única origem de imagem possível é o
-    conteúdo em bytes de `ImagemGerada`: nunca caminho de arquivo nem URL.
+    `resultados[i]` corresponde a `conceitos[i]`; pode haver menos resultados que conceitos,
+    nunca mais. A imagem vem só dos bytes de `ImagemGerada`, nunca de arquivo ou URL.
     """
 
     conceitos: tuple[ConceitoVisual, ...]
@@ -89,7 +84,7 @@ class Posicionamento:
     preparadas: int
 
 
-def _bloco_da_imagem(imagem: ImagemGerada) -> str | None:
+def _bloco_da_imagem(imagem: ImagemGerada, numero: int) -> str | None:
     # Devolve o HTML da imagem ou None se ela não passar na validação. Revalida os bytes mesmo
     # com `ImagemGerada` já validada: o objeto é imutável por convenção, não por garantia.
     if not isinstance(imagem.conteudo, bytes) or not estrutura_da_imagem_valida(imagem.conteudo):
@@ -98,7 +93,13 @@ def _bloco_da_imagem(imagem: ImagemGerada) -> str | None:
     if _URI_DE_IMAGEM_PERMITIDA.fullmatch(uri) is None:
         return None
     alternativo = html.escape(imagem.texto_alternativo, quote=True)
-    return f'<div class="imagem-gerada"><img src="{uri}" alt="{alternativo}"></div>'
+    # Figura com legenda numerada: a imagem fica ancorada ao parágrafo que a explica, sem página
+    # própria (ver o CSS de `figure.imagem-gerada`). A legenda é o mesmo texto alternativo, já
+    # escapado.
+    return (
+        f'<figure class="imagem-gerada"><img src="{uri}" alt="{alternativo}">'
+        f"<figcaption>Figura {numero}. {alternativo}</figcaption></figure>"
+    )
 
 
 def posicionar_imagens(
@@ -134,7 +135,9 @@ def posicionar_imagens(
             ancora = correspondencia.group(1)
             imagem = por_ancora.get(ancora)
             bloco = (
-                _bloco_da_imagem(imagem) if imagem is not None and ancora not in usadas else None
+                _bloco_da_imagem(imagem, len(blocos) + 1)
+                if imagem is not None and ancora not in usadas
+                else None
             )
             if bloco is not None:
                 usadas.add(ancora)
