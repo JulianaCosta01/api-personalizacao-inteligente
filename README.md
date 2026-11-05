@@ -98,7 +98,6 @@ flowchart TD
 | Banco de dados | PostgreSQL 16, SQLAlchemy 2.0 assíncrono, asyncpg, Alembic |
 | IA | Gemini (`google-genai`), Cloudflare Workers AI para imagens |
 | PDF | pymupdf4llm, Markdown, WeasyPrint |
-| Armazenamento | Supabase Storage via `httpx` |
 | Segurança | Token de serviço com comparação em tempo constante, validação estrita com Pydantic, rate limiting, security headers, CORS por ambiente, URLs assinadas, renderização sem rede e role de banco de privilégio mínimo |
 | Observabilidade | Logs estruturados em JSON com id de correlação, `/health`, `/ready` e heartbeat do Worker |
 | Infraestrutura | Docker, Docker Compose com limites de CPU e memória, GitHub Actions |
@@ -203,6 +202,3 @@ docker/                # imagens da API e do Worker
 
 Desenvolvido por **Juliana Costa** ([@JulianaCosta01](https://github.com/JulianaCosta01)), com orientação do Prof. Dr. Tiago Bonini Borchartt (DEINF/UFMA).
 
-## Referências
-
-- Felder, R. M.; Silverman, L. K. (1988). *Learning and Teaching Styles in Engineering Education*. Engineering Education, 78(7).
