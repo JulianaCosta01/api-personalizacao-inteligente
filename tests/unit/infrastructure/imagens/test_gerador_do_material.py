@@ -101,7 +101,7 @@ def _motivos(resultados: tuple[ResultadoGeracaoImagem, ...]) -> list[str]:
     return [r.motivo.value if isinstance(r, FalhaGeracaoImagem) else "ok" for r in resultados]
 
 
-# --- orçamento compartilhado -------------------------------------------------------------------
+# Orçamento compartilhado
 
 
 async def test_o_orcamento_e_compartilhado_entre_as_imagens(limites_aplicados: list[float]) -> None:
@@ -181,7 +181,7 @@ async def test_relogio_que_avanca_durante_a_chamada_preserva_a_imagem_gerada() -
     assert isinstance(resultados[0], ImagemGerada)
 
 
-# --- limites antes de chamar o provedor --------------------------------------------------------
+# Limites antes de chamar o provedor
 
 
 async def test_maximo_e_aplicado_antes_de_qualquer_chamada() -> None:
@@ -274,7 +274,7 @@ async def test_o_limite_da_chamada_e_o_menor_entre_restante_total_e_individual(
     assert limites_aplicados == [25.0, 60.0, 30.0]
 
 
-# --- falhas ------------------------------------------------------------------------------------
+# Falhas
 
 
 async def test_falha_individual_nao_apaga_os_resultados_anteriores_nem_os_seguintes() -> None:
@@ -317,7 +317,7 @@ async def test_resultado_fora_do_contrato_e_um_erro_de_programacao() -> None:
         await orq.gerar(_conceitos("a"))
 
 
-# --- logs --------------------------------------------------------------------------------------
+# Logs
 
 
 async def test_logs_nao_trazem_descricao_nem_conteudo(caplog: pytest.LogCaptureFixture) -> None:
@@ -333,7 +333,7 @@ async def test_logs_nao_trazem_descricao_nem_conteudo(caplog: pytest.LogCaptureF
     assert "1 gerada(s), 2 falha(s)" in caplog.text
 
 
-# --- configuração do orquestrador --------------------------------------------------------------
+# Configuração do orquestrador
 
 
 @pytest.mark.parametrize(

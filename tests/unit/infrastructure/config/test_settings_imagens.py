@@ -7,15 +7,18 @@ from infrastructure.config.settings import Settings
 
 _NOMES_DO_RECURSO = [
     "IMAGENS_GERADAS_HABILITADAS",
-    "OPENAI_API_KEY",
-    "OPENAI_IMAGE_MODEL",
-    "OPENAI_IMAGE_QUALITY",
-    "OPENAI_IMAGE_SIZE",
-    "OPENAI_IMAGE_TIMEOUT_SEGUNDOS",
+    "IMAGENS_PROVEDOR",
+    "CLOUDFLARE_ACCOUNT_ID",
+    "CLOUDFLARE_API_TOKEN",
+    "CLOUDFLARE_IMAGE_MODEL",
+    "CLOUDFLARE_IMAGE_STEPS",
+    "CLOUDFLARE_IMAGE_TIMEOUT_SEGUNDOS",
     "IMAGENS_TIMEOUT_TOTAL_SEGUNDOS",
     "IMAGENS_ORCAMENTO_TOTAL_SEGUNDOS",
     "IMAGENS_MAX_POR_MATERIAL",
 ]
+_CONTA = "0123456789abcdef0123456789abcdef"
+_MODELO = "@cf/black-forest-labs/flux-1-schnell"
 
 
 @pytest.fixture(autouse=True)
@@ -36,9 +39,8 @@ def test_recurso_vem_desligado_por_padrao() -> None:
 def test_valores_padrao_sao_conservadores() -> None:
     s = _settings()
     assert s.imagens_max_por_material == 1
-    assert s.openai_image_quality == "low"
-    assert s.openai_image_size == "1024x1024"
-    assert s.openai_image_timeout_segundos == 60.0
+    assert s.cloudflare_image_steps == 4
+    assert s.cloudflare_image_timeout_segundos == 60.0
     assert s.imagens_timeout_total_segundos == 120.0
 
 
@@ -67,66 +69,82 @@ def test_orcamento_total_vem_da_variavel_de_ambiente(monkeypatch: pytest.MonkeyP
 def test_orcamento_total_nao_altera_o_timeout_por_imagem() -> None:
     s = _settings(imagens_orcamento_total_segundos=30)
     assert s.imagens_timeout_total_segundos == 120.0
-    assert s.openai_image_timeout_segundos == 60.0
+    assert s.cloudflare_image_timeout_segundos == 60.0
 
 
-def test_nenhum_modelo_nem_chave_sao_presumidos() -> None:
+def test_nenhum_modelo_nem_credencial_sao_presumidos() -> None:
     s = _settings()
-    assert s.openai_api_key is None
-    assert s.openai_image_model is None
+    assert s.cloudflare_account_id is None
+    assert s.cloudflare_api_token is None
+    assert s.cloudflare_image_model is None
 
 
-def test_sem_chave_o_projeto_sobe_normalmente_com_o_recurso_desligado() -> None:
-    assert _settings(imagens_geradas_habilitadas=False).openai_api_key is None
+def test_sem_credencial_o_projeto_sobe_normalmente_com_o_recurso_desligado() -> None:
+    assert _settings(imagens_geradas_habilitadas=False).cloudflare_api_token is None
 
 
-def test_ligar_sem_chave_falha_na_inicializacao() -> None:
-    with pytest.raises(ValidationError, match="OPENAI_API_KEY"):
-        _settings(imagens_geradas_habilitadas=True, openai_image_model="modelo-x")
+def test_ligar_sem_token_falha_na_inicializacao() -> None:
+    with pytest.raises(ValidationError, match="CLOUDFLARE_API_TOKEN"):
+        _settings(
+            imagens_geradas_habilitadas=True,
+            cloudflare_account_id=_CONTA,
+            cloudflare_image_model=_MODELO,
+        )
 
 
 def test_ligar_sem_modelo_falha_na_inicializacao() -> None:
-    with pytest.raises(ValidationError, match="OPENAI_IMAGE_MODEL"):
-        _settings(imagens_geradas_habilitadas=True, openai_api_key="chave-de-teste")
+    with pytest.raises(ValidationError, match="CLOUDFLARE_IMAGE_MODEL"):
+        _settings(
+            imagens_geradas_habilitadas=True,
+            cloudflare_account_id=_CONTA,
+            cloudflare_api_token="token-de-teste",
+        )
 
 
 @pytest.mark.parametrize("vazio", ["", "   "])
-def test_chave_e_modelo_vazios_valem_como_ausentes(vazio: str) -> None:
-    with pytest.raises(ValidationError, match="OPENAI_API_KEY"):
-        _settings(
-            imagens_geradas_habilitadas=True, openai_api_key=vazio, openai_image_model="modelo-x"
-        )
-    with pytest.raises(ValidationError, match="OPENAI_IMAGE_MODEL"):
+def test_token_e_modelo_vazios_valem_como_ausentes(vazio: str) -> None:
+    with pytest.raises(ValidationError, match="CLOUDFLARE_API_TOKEN"):
         _settings(
             imagens_geradas_habilitadas=True,
-            openai_api_key="chave-de-teste",
-            openai_image_model=vazio,
+            cloudflare_account_id=_CONTA,
+            cloudflare_api_token=vazio,
+            cloudflare_image_model=_MODELO,
         )
-    assert _settings(openai_api_key=vazio, openai_image_model=vazio).openai_api_key is None
+    with pytest.raises(ValidationError, match="CLOUDFLARE_IMAGE_MODEL"):
+        _settings(
+            imagens_geradas_habilitadas=True,
+            cloudflare_account_id=_CONTA,
+            cloudflare_api_token="token-de-teste",
+            cloudflare_image_model=vazio,
+        )
+    s = _settings(cloudflare_api_token=vazio, cloudflare_image_model=vazio)
+    assert s.cloudflare_api_token is None and s.cloudflare_image_model is None
 
 
 def test_configuracao_completa_liga_o_recurso() -> None:
     s = _settings(
         imagens_geradas_habilitadas=True,
-        openai_api_key="chave-de-teste",
-        openai_image_model="modelo-x",
+        cloudflare_account_id=_CONTA,
+        cloudflare_api_token="token-de-teste",
+        cloudflare_image_model=_MODELO,
     )
     assert s.imagens_geradas_habilitadas is True
-    assert s.openai_image_model == "modelo-x"
-    assert isinstance(s.openai_api_key, SecretStr)
-    assert s.openai_api_key.get_secret_value() == "chave-de-teste"
+    assert s.cloudflare_image_model == _MODELO
+    assert isinstance(s.cloudflare_api_token, SecretStr)
+    assert s.cloudflare_api_token.get_secret_value() == "token-de-teste"
 
 
-def test_chave_nao_aparece_em_repr_nem_em_str() -> None:
-    s = _settings(openai_api_key="segredo-que-nao-pode-vazar")
+def test_token_nao_aparece_em_repr_nem_em_str() -> None:
+    s = _settings(cloudflare_api_token="segredo-que-nao-pode-vazar")
     assert "segredo-que-nao-pode-vazar" not in repr(s)
     assert "segredo-que-nao-pode-vazar" not in str(s)
 
 
 def test_variaveis_de_ambiente_sao_lidas(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("IMAGENS_GERADAS_HABILITADAS", "true")
-    monkeypatch.setenv("OPENAI_API_KEY", "chave-de-teste")
-    monkeypatch.setenv("OPENAI_IMAGE_MODEL", "modelo-x")
+    monkeypatch.setenv("CLOUDFLARE_ACCOUNT_ID", _CONTA)
+    monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "token-de-teste")
+    monkeypatch.setenv("CLOUDFLARE_IMAGE_MODEL", _MODELO)
     monkeypatch.setenv("IMAGENS_MAX_POR_MATERIAL", "3")
     s = _settings()
     assert s.imagens_geradas_habilitadas is True
@@ -145,9 +163,9 @@ def test_maximo_de_imagens_dentro_do_limite_e_aceito(valor: int) -> None:
 
 
 @pytest.mark.parametrize("valor", [0, -5, 300.1, "abc"])
-def test_timeout_por_imagem_invalido_e_rejeitado(valor: Any) -> None:
+def test_timeout_por_tentativa_invalido_e_rejeitado(valor: Any) -> None:
     with pytest.raises(ValidationError):
-        _settings(openai_image_timeout_segundos=valor)
+        _settings(cloudflare_image_timeout_segundos=valor)
 
 
 @pytest.mark.parametrize("valor", [0, -5, 600.1])
@@ -156,39 +174,14 @@ def test_timeout_total_invalido_e_rejeitado(valor: float) -> None:
         _settings(imagens_timeout_total_segundos=valor)
 
 
-def test_timeout_total_menor_que_o_por_imagem_e_rejeitado() -> None:
+def test_timeout_total_menor_que_o_por_tentativa_e_rejeitado() -> None:
     with pytest.raises(ValidationError, match="IMAGENS_TIMEOUT_TOTAL_SEGUNDOS"):
-        _settings(openai_image_timeout_segundos=90, imagens_timeout_total_segundos=60)
+        _settings(cloudflare_image_timeout_segundos=90, imagens_timeout_total_segundos=60)
 
 
-def test_timeout_total_igual_ao_por_imagem_e_aceito() -> None:
-    s = _settings(openai_image_timeout_segundos=60, imagens_timeout_total_segundos=60)
+def test_timeout_total_igual_ao_por_tentativa_e_aceito() -> None:
+    s = _settings(cloudflare_image_timeout_segundos=60, imagens_timeout_total_segundos=60)
     assert s.imagens_timeout_total_segundos == 60
-
-
-@pytest.mark.parametrize("qualidade", ["auto", "low", "medium", "high"])
-def test_qualidades_conhecidas_sao_aceitas(qualidade: str) -> None:
-    assert _settings(openai_image_quality=qualidade).openai_image_quality == qualidade
-
-
-@pytest.mark.parametrize("qualidade", ["", "ultra", "HIGH", "standard"])
-def test_qualidade_desconhecida_e_rejeitada(qualidade: str) -> None:
-    with pytest.raises(ValidationError):
-        _settings(openai_image_quality=qualidade)
-
-
-@pytest.mark.parametrize("tamanho", ["auto", "1024x1024", "1536x1024", "1024x1536", "2048x2048"])
-def test_tamanhos_com_formato_valido_sao_aceitos(tamanho: str) -> None:
-    assert _settings(openai_image_size=tamanho).openai_image_size == tamanho
-
-
-@pytest.mark.parametrize(
-    "tamanho",
-    ["", "1024", "1024X1024", "0x0", "10x10", "1024x", "x1024", "1024x1024; rm", " 1024x1024"],
-)
-def test_tamanho_com_formato_invalido_e_rejeitado(tamanho: str) -> None:
-    with pytest.raises(ValidationError):
-        _settings(openai_image_size=tamanho)
 
 
 def test_flag_aceita_booleanos_do_pydantic_e_rejeita_lixo() -> None:

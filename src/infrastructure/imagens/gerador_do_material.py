@@ -18,10 +18,8 @@ logger = logging.getLogger(__name__)
 class GeradorDeImagensDoMaterial:
     """Gera as imagens de um material, em sequência, dentro de um prazo único.
 
-    Não conhece o provedor: usa a porta `IGeradorDeImagens`. Devolve um resultado por conceito
-    aceito (na ordem recebida): imagem gerada ou falha esperada. Nunca perde as imagens já
-    geradas e nunca inicia uma chamada sem tempo para ela. Os registros de log trazem só
-    identificadores, motivos e contagens (nunca descrição, prompt, chave ou conteúdo).
+    Devolve um resultado por conceito, na ordem recebida, e não inicia chamada sem tempo
+    para ela. Logs só com identificadores, motivos e contagens.
     """
 
     def __init__(
